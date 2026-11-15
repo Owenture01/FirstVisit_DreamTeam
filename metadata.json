@@ -1,0 +1,6 @@
+{
+  "name": "FirstVisit - Mother & Child Health Monitor",
+  "description": "Mobile web application to track and monitor mother-child health with wearable Bump Band and smartwatch integration, proactive AI companion, and clinical triage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
