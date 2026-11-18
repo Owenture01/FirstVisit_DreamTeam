@@ -77,6 +77,228 @@ h1, h2, h3, h4, .font-heading {
   animation: ecg-dash 3s linear infinite;
 }
 
+/* Cute progressive baby companion animations */
+@keyframes companion-wobble {
+  0%, 100% {
+    transform: rotate(-4deg) translateY(0px);
+  }
+  25% {
+    transform: rotate(5deg) translateY(-2px);
+  }
+  50% {
+    transform: rotate(-3deg) translateY(0px);
+  }
+  75% {
+    transform: rotate(4deg) translateY(-1.5px);
+  }
+}
+
+@keyframes companion-breathe {
+  0%, 100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.06, 0.96);
+  }
+}
+
+@keyframes companion-blink {
+  0%, 42%, 46%, 48%, 52%, 88%, 92%, 100% {
+    transform: scaleY(1);
+  }
+  44%, 50%, 90% {
+    transform: scaleY(0.08);
+  }
+}
+
+.animate-companion-wobble {
+  transform-origin: center 75%;
+  animation: companion-wobble 3.4s ease-in-out infinite;
+}
+
+.animate-companion-breathe {
+  transform-origin: center center;
+  animation: companion-breathe 2.6s ease-in-out infinite;
+}
+
+.companion-eye {
+  transform-box: fill-box;
+  transform-origin: center center;
+  animation: companion-blink 4.6s ease-in-out infinite;
+}
+
+/* Hana AI Chatbot Mascot Animations */
+@keyframes hana-float {
+  0%, 100% {
+    transform: translateY(0px) rotate(-2deg) scale(1);
+  }
+  25% {
+    transform: translateY(-3px) rotate(1.5deg) scale(1.02);
+  }
+  50% {
+    transform: translateY(-1px) rotate(2.5deg) scale(1);
+  }
+  75% {
+    transform: translateY(-3.5px) rotate(-1deg) scale(1.015);
+  }
+}
+
+@keyframes hana-antenna-glow {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.animate-hana-float {
+  transform-origin: 50% 80%;
+  animation: hana-float 3.4s ease-in-out infinite;
+}
+
+.animate-hana-antenna {
+  transform-box: fill-box;
+  transform-origin: center center;
+  animation: hana-antenna-glow 2.2s ease-in-out infinite;
+}
+
+.hana-eye {
+  transform-box: fill-box;
+  transform-origin: center center;
+  animation: companion-blink 4.2s ease-in-out infinite;
+}
+
+.mask-luminance {
+  mask-type: luminance;
+}
+
+/* Emergency BP Critical Beeping Animations */
+@keyframes emergency-bg-pulse {
+  0%, 100% {
+    background-color: #FCE9E6;
+  }
+  50% {
+    background-color: #F7C7C0;
+  }
+}
+
+@keyframes emergency-bg-pulse-dark {
+  0%, 100% {
+    background-color: #2A0D10;
+  }
+  50% {
+    background-color: #461217;
+  }
+}
+
+@keyframes emergency-card-beep {
+  0%, 100% {
+    background-color: #B3261E;
+    box-shadow: 0 10px 25px -5px rgba(179, 38, 30, 0.45), 0 0 0 0 rgba(220, 38, 38, 0.55);
+  }
+  50% {
+    background-color: #CE251C;
+    box-shadow: 0 12px 30px -3px rgba(220, 38, 38, 0.65), 0 0 0 6px rgba(220, 38, 38, 0);
+  }
+}
+
+@keyframes emergency-modal-beep {
+  0%, 100% {
+    background-color: #8B1D16;
+  }
+  50% {
+    background-color: #B91C1C;
+  }
+}
+
+@keyframes bp-critical-beep {
+  0%, 100% {
+    background-color: #FBE3E0;
+    border-color: #B3261E;
+    box-shadow: 0 0 0 0 rgba(179, 38, 30, 0.45);
+  }
+  50% {
+    background-color: #F9C6BF;
+    border-color: #EF4444;
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-emergency-bg {
+  animation: emergency-bg-pulse 1.25s ease-in-out infinite;
+}
+
+.dark .animate-emergency-bg {
+  animation: emergency-bg-pulse-dark 1.25s ease-in-out infinite;
+}
+
+.animate-emergency-card {
+  animation: emergency-card-beep 1.25s ease-in-out infinite;
+}
+
+.animate-emergency-modal {
+  animation: emergency-modal-beep 1.25s ease-in-out infinite;
+}
+
+.animate-bp-critical {
+  animation: bp-critical-beep 1.25s ease-in-out infinite;
+}
+
+/* iPhone Lock Screen Notification & Face ID Animations */
+@keyframes lock-notification-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes faceid-scan-sweep {
+  0%, 100% {
+    transform: translateY(-7px);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(7px);
+    opacity: 1;
+  }
+}
+
+.animate-lock-pop {
+  animation: lock-notification-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-faceid-scan {
+  animation: faceid-scan-sweep 0.65s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-heartbeat,
+  .animate-ecg-line,
+  .animate-companion-wobble,
+  .animate-companion-breathe,
+  .companion-eye,
+  .animate-hana-float,
+  .animate-hana-antenna,
+  .hana-eye,
+  .animate-emergency-bg,
+  .animate-emergency-card,
+  .animate-emergency-modal,
+  .animate-bp-critical,
+  .animate-lock-pop,
+  .animate-faceid-scan {
+    animation: none;
+  }
+}
+
 /* iOS Safe areas & smooth scrolling */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 24px);

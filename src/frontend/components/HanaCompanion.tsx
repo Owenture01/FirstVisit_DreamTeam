@@ -24,10 +24,11 @@ export const HanaCompanion: React.FC<HanaCompanionProps> = ({
     return (
       <div className="w-full py-2 flex items-center justify-center">
         <button
+          type="button"
           onClick={() => setDismissed(false)}
-          className="text-xs text-[#0B5F73] font-medium flex items-center gap-1.5 hover:underline"
+          className="text-xs text-[#0B5F73] font-medium flex items-center gap-1.5 hover:underline min-h-[44px] px-2"
         >
-          <HanaAvatar size="sm" />
+          <HanaAvatar size="sm" animated />
           <span>Hana is standing by. Tap for tips.</span>
         </button>
       </div>
@@ -48,20 +49,22 @@ export const HanaCompanion: React.FC<HanaCompanionProps> = ({
         {/* Action Buttons */}
         <div className="flex items-center gap-2 mt-3">
           <button
+            type="button"
             onClick={onYesPlease}
             aria-label={primaryAction}
-            className="h-9 px-4 rounded-full bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[13px] hover:bg-[#084857] active:scale-95 transition-all shadow-xs"
+            className="min-h-[44px] h-11 px-4 rounded-full bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[13px] hover:bg-[#084857] active:scale-95 transition-all shadow-xs"
           >
             {primaryAction}
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setDismissed(true);
               onLater();
             }}
             aria-label={secondaryAction}
-            className="h-9 px-4 rounded-full bg-[#DDEFF4] text-[#0B5F73] font-['Figtree'] font-bold text-[13px] hover:bg-[#cbe3ea] active:scale-95 transition-all"
+            className="min-h-[44px] h-11 px-4 rounded-full bg-[#DDEFF4] text-[#0B5F73] font-['Figtree'] font-bold text-[13px] hover:bg-[#cbe3ea] active:scale-95 transition-all"
           >
             {secondaryAction}
           </button>
@@ -69,13 +72,15 @@ export const HanaCompanion: React.FC<HanaCompanionProps> = ({
       </div>
 
       {/* Hana Mascot Character Illustration */}
-      <div 
-        onClick={onYesPlease} 
-        className="cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+      <button
+        type="button"
+        onClick={onYesPlease}
+        aria-label="Tap to chat with Hana"
         title="Tap to chat with Hana"
+        className="cursor-pointer hover:scale-105 active:scale-95 transition-transform shrink-0 focus:outline-none"
       >
         <HanaAvatar size="md" animated />
-      </div>
+      </button>
     </div>
   );
 };

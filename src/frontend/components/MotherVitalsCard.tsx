@@ -66,9 +66,16 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
               : 'bg-[#F1F6F8] hover:bg-[#e7eef1]'
           }`}
         >
-          <span className="font-['Noto_Sans'] text-[13px] text-[#475569] block font-medium">
-            Heart rate
-          </span>
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-['Noto_Sans'] text-[13px] text-[#475569] font-medium">
+              Heart rate
+            </span>
+            {isHighHR && (
+              <span className="font-['Noto_Sans'] text-[12px] text-[#475569]">
+                Watch
+              </span>
+            )}
+          </div>
           <div className="flex items-baseline gap-1 my-1">
             <span className="font-['Figtree'] text-[28px] font-[800] text-[#0F2733] tabular-nums leading-none">
               {heartRate}
@@ -97,13 +104,20 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
           onClick={() => onTileClick && onTileClick('blood_pressure')}
           className={`p-3.5 rounded-[18px] transition-all cursor-pointer ${
             isUrgentBP 
-              ? 'bg-[#FBE3E0] border-2 border-[#B3261E]' 
+              ? 'animate-bp-critical border-2 border-[#B3261E]' 
               : 'bg-[#F1F6F8] hover:bg-[#e7eef1]'
           }`}
         >
-          <span className="font-['Noto_Sans'] text-[13px] text-[#475569] block font-medium">
-            Blood pressure
-          </span>
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-['Noto_Sans'] text-[13px] text-[#475569] font-medium">
+              Blood pressure
+            </span>
+            {isUrgentBP && (
+              <span className="font-['Noto_Sans'] text-[12px] text-[#475569]">
+                Cuff
+              </span>
+            )}
+          </div>
           <div className="flex items-baseline gap-1 my-1">
             <span className={`font-['Figtree'] text-[24px] sm:text-[26px] font-[800] tabular-nums leading-none ${
               isUrgentBP ? 'text-[#B3261E]' : 'text-[#0F2733]'
@@ -114,7 +128,7 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
 
           {/* Status Badge */}
           {isUrgentBP ? (
-            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#B3261E] text-white text-[11px] font-bold">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#B3261E] text-white text-[11px] font-bold shadow-xs animate-pulse">
               <span>!</span>
               <span>Very high</span>
             </div>

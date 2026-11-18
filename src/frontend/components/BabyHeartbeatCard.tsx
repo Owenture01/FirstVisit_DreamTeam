@@ -6,6 +6,7 @@ interface BabyHeartbeatCardProps {
   bpm: number;
   isLive?: boolean;
   statusText?: string;
+  compactSubtitle?: string;
   isEarlyPregnancy?: boolean;
   compact?: boolean;
   onCardClick?: () => void;
@@ -15,6 +16,7 @@ export const BabyHeartbeatCard: React.FC<BabyHeartbeatCardProps> = ({
   bpm = 138,
   isLive = true,
   statusText = 'Normal',
+  compactSubtitle,
   isEarlyPregnancy = false,
   compact = false,
   onCardClick,
@@ -71,8 +73,15 @@ export const BabyHeartbeatCard: React.FC<BabyHeartbeatCardProps> = ({
             <span className="text-xs text-[#DDEFF4] block font-medium">Baby's heartbeat</span>
             <div className="flex items-baseline gap-1.5">
               <span className="font-['Figtree'] font-extrabold text-xl tabular-nums leading-none">{bpm}</span>
-              <span className="text-xs text-white/80 font-normal">bpm · {statusText.toLowerCase()}</span>
+              <span className="text-xs text-white/80 font-normal">
+                {compactSubtitle ? 'bpm' : `bpm · ${statusText.toLowerCase()}`}
+              </span>
             </div>
+            {compactSubtitle && (
+              <span className="text-[11px] text-[#DDEFF4]/80 block mt-1">
+                {compactSubtitle}
+              </span>
+            )}
           </div>
         </div>
 

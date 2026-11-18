@@ -17,10 +17,15 @@ import {
   PlaySquare,
   Shield,
   Layers,
-  Smartphone
+  Smartphone,
+  Calendar,
+  RotateCcw,
+  ChevronLeft
 } from 'lucide-react';
 import { AppScenario, ScreenTab } from '../types';
 import { OnboardingStep } from '../screens/OnboardingFlow';
+import { BabyCompanionSticker } from './BabyCompanionSticker';
+import { getBabySizeStage } from '../data/babySizeStickers';
 
 interface ScenarioSidebarProps {
   isOpen: boolean;
@@ -29,9 +34,12 @@ interface ScenarioSidebarProps {
   currentTab: ScreenTab;
   scenario: AppScenario;
   isClinicPortalActive: boolean;
+  isLockScreenOpen: boolean;
   currentAuthScreen: OnboardingStep | 'authenticated';
   // Scenario actions
   onSelectAuthStep: (step: OnboardingStep) => void;
+  onOpenLockScreen: () => void;
+  onOpenHanaView: (view: 'daily' | 'mental_health' | 'mood_question' | 'mood_result') => void;
   onSelectPatientTab: (tab: ScreenTab) => void;
   onSelectScenario: (scen: AppScenario) => void;
   onOpenHelp: () => void;
@@ -50,6 +58,16 @@ interface ScenarioSidebarProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onGuestSkip: () => void;
+  // Progressive companion date simulation
+  simulatedDate: string;
+  dueDate: string;
+  gestationalWeek: number;
+  gestationalDay: number;
+  daysRemaining: number;
+  onSimulatedDateChange: (date: string) => void;
+  onDueDateChange: (date: string) => void;
+  onSelectWeek: (week: number) => void;
+  onResetDateSimulation: () => void;
 }
 
 export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
@@ -58,8 +76,11 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
   currentTab,
   scenario,
   isClinicPortalActive,
+  isLockScreenOpen,
   currentAuthScreen,
   onSelectAuthStep,
+  onOpenLockScreen,
+  onOpenHanaView,
   onSelectPatientTab,
   onSelectScenario,
   onOpenHelp,
@@ -76,19 +97,33 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
   isDarkMode,
   onToggleDarkMode,
   onGuestSkip,
+  simulatedDate,
+  dueDate,
+  gestationalWeek,
+  gestationalDay,
+  daysRemaining,
+  onSimulatedDateChange,
+  onDueDateChange,
+  onSelectWeek,
+  onResetDateSimulation,
 }) => {
+  const stage = getBabySizeStage(gestationalWeek);
+  const clampedWeek = Math.max(4, Math.min(40, gestationalWeek));
   return (
     <>
-      {/* Floating Collapsed Trigger Badge (visible when sidebar is closed) */}
+      {/* Collapsed Trigger: discreet left-edge pull handle on mobile/tablet so it never blocks the Week/Day header, compact gutter pill on desktop (lg+) */}
       {!isOpen && (
         <button
           onClick={onToggle}
           aria-label="Open Scenarios Sidebar"
-          className="fixed top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-white dark:bg-[#15252D] text-[#0B5F73] dark:text-[#6CCBE0] font-['Figtree'] font-extrabold text-[12px] flex items-center gap-2 shadow-lg border border-slate-200 dark:border-slate-700 hover:scale-105 active:scale-95 transition-all backdrop-blur-md"
+          title="Scenarios & Date Simulator"
+          className="fixed left-0 top-[58%] -translate-y-1/2 z-40 h-14 w-5 hover:w-6 rounded-r-xl bg-white/75 dark:bg-[#15252D]/75 text-[#0B5F73] dark:text-[#6CCBE0] border-y border-r border-slate-300/70 dark:border-slate-700/70 shadow-sm backdrop-blur-xs opacity-60 hover:opacity-100 active:scale-95 transition-all flex items-center justify-center before:content-[''] before:absolute before:inset-y-0 before:left-0 before:w-11 lg:top-4 lg:left-4 lg:translate-y-0 lg:h-auto lg:w-auto lg:hover:w-auto lg:px-3.5 lg:py-2 lg:rounded-full lg:border lg:opacity-90 lg:shadow-md lg:gap-2 lg:before:hidden"
         >
-          <Menu className="w-4 h-4" />
-          <span>Scenarios & Views</span>
-          <span className="w-2 h-2 rounded-full bg-[#15803D] animate-pulse" />
+          <ChevronRight className="w-3.5 h-3.5 lg:hidden shrink-0" strokeWidth={2.5} />
+          <Menu className="hidden lg:block w-4 h-4 shrink-0" />
+          <span className="hidden lg:inline font-['Figtree'] font-bold text-[12px] whitespace-nowrap">
+            Scenarios & Views
+          </span>
         </button>
       )}
 
@@ -159,6 +194,138 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
             </button>
           </div>
 
+          {/* Group 0: Progressive Baby Size Date Simulation */}
+          <div className="p-3 rounded-2xl bg-[#F1F6F8] dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-['Figtree'] font-extrabold uppercase tracking-wider text-[10px] text-[#0B5F73] dark:text-[#6CCBE0] flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Date & Growth Simulator</span>
+              </span>
+              <button
+                type="button"
+                onClick={onResetDateSimulation}
+                title="Reset to default Week 31 Day 4"
+                className="text-[10px] font-['Figtree'] font-bold text-[#0B5F73] dark:text-[#6CCBE0] hover:underline flex items-center gap-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            </div>
+
+            {/* Live Companion Mini Preview */}
+            <div className="p-2.5 rounded-xl bg-[#0B5F73] text-white flex items-center gap-3 shadow-xs">
+              <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+                <BabyCompanionSticker week={stage.week} size="sm" animated progressiveScale />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-['Figtree'] font-extrabold text-[13px] leading-tight tabular-nums">
+                  Week {gestationalWeek} · Day {gestationalDay}
+                </div>
+                <div className="font-['Noto_Sans'] text-[11px] text-[#DDEFF4] truncate mt-0.5">
+                  {stage.name} ({stage.lengthCm})
+                </div>
+                <div className="font-['Noto_Sans'] text-[10px] text-white/75 tabular-nums">
+                  {daysRemaining > 0
+                    ? `${daysRemaining} days until due date`
+                    : daysRemaining === 0
+                    ? 'Due date today'
+                    : `${Math.abs(daysRemaining)} days past due date`}
+                </div>
+              </div>
+            </div>
+
+            {/* Simulated Current Date Picker */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label
+                  htmlFor="sim-current-date"
+                  className="block font-['Figtree'] font-bold text-[10px] text-[#475569] dark:text-[#A9B8C0] mb-1"
+                >
+                  Simulated date
+                </label>
+                <input
+                  id="sim-current-date"
+                  type="date"
+                  value={simulatedDate}
+                  onChange={(e) => {
+                    if (e.target.value) onSimulatedDateChange(e.target.value);
+                  }}
+                  className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0F2733] dark:text-white font-['Figtree'] font-semibold text-[11px] tabular-nums focus:outline-hidden focus:border-[#0B5F73]"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="sim-due-date"
+                  className="block font-['Figtree'] font-bold text-[10px] text-[#475569] dark:text-[#A9B8C0] mb-1"
+                >
+                  Due date
+                </label>
+                <input
+                  id="sim-due-date"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => {
+                    if (e.target.value) onDueDateChange(e.target.value);
+                  }}
+                  className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0F2733] dark:text-white font-['Figtree'] font-semibold text-[11px] tabular-nums focus:outline-hidden focus:border-[#0B5F73]"
+                />
+              </div>
+            </div>
+
+            {/* Week Scrubber Slider & Stepper */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label
+                  htmlFor="sim-week-slider"
+                  className="font-['Figtree'] font-bold text-[10px] text-[#475569] dark:text-[#A9B8C0]"
+                >
+                  Jump by week (4–40)
+                </label>
+                <span className="font-['Figtree'] font-extrabold text-[11px] text-[#0B5F73] dark:text-[#6CCBE0] tabular-nums">
+                  Wk {clampedWeek}
+                </span>
+              </div>
+              <input
+                id="sim-week-slider"
+                type="range"
+                min={4}
+                max={40}
+                value={clampedWeek}
+                onChange={(e) => onSelectWeek(Number(e.target.value))}
+                className="w-full accent-[#0B5F73] cursor-pointer"
+              />
+              <div className="flex items-center justify-between gap-1.5 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => onSelectWeek(Math.max(4, clampedWeek - 1))}
+                  className="flex-1 py-1.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-['Figtree'] font-bold text-[11px] text-[#0F2733] dark:text-white hover:bg-slate-50 flex items-center justify-center gap-0.5"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>-1 wk</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectWeek(Math.min(40, clampedWeek + 1))}
+                  className="flex-1 py-1.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-['Figtree'] font-bold text-[11px] text-[#0F2733] dark:text-white hover:bg-slate-50 flex items-center justify-center gap-0.5"
+                >
+                  <span>+1 wk</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectPatientTab('today');
+                    if (window.innerWidth < 1024) onToggle();
+                  }}
+                  className="py-1.5 px-2.5 rounded-lg bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[11px] hover:bg-[#084958] transition-colors"
+                >
+                  View
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Group 1: Onboarding & Login (Screens 01-07) */}
           <div>
             <div className="px-1 mb-1.5 flex items-center justify-between">
@@ -208,12 +375,27 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
             <div className="space-y-1">
               <button
                 onClick={() => {
+                  onOpenLockScreen();
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  isLockScreenOpen
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>08 · Lock Screen Check-in</span>
+                <span className="text-[9px] opacity-75">2s popup</span>
+              </button>
+
+              <button
+                onClick={() => {
                   onSelectScenario('home_week31');
                   onSelectPatientTab('today');
                   if (window.innerWidth < 1024) onToggle();
                 }}
                 className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
-                  currentAuthScreen === 'authenticated' && !isClinicPortalActive && currentTab === 'today' && scenario === 'home_week31'
+                  !isLockScreenOpen && currentAuthScreen === 'authenticated' && !isClinicPortalActive && currentTab === 'today' && scenario === 'home_week31'
                     ? 'bg-[#0B5F73] text-white shadow-xs'
                     : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
@@ -329,6 +511,52 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
               >
                 <span>Early Pregnancy</span>
                 <span className="text-[9px] opacity-70">Week 9</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Group 2B: Hana Companion (Screens 15-18) */}
+          <div>
+            <span className="font-['Figtree'] font-extrabold uppercase tracking-wider text-[10px] text-[#0B5F73] dark:text-[#6CCBE0] px-1 mb-1.5 block">
+              15-18 · Hana Companion
+            </span>
+
+            <div className="space-y-1">
+              <button
+                onClick={() => {
+                  onOpenHanaView('daily');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                15 · Hana chat · daily
+              </button>
+              <button
+                onClick={() => {
+                  onOpenHanaView('mental_health');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                16 · Hana chat · mental health
+              </button>
+              <button
+                onClick={() => {
+                  onOpenHanaView('mood_question');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                17 · Mood check · question
+              </button>
+              <button
+                onClick={() => {
+                  onOpenHanaView('mood_result');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                18 · Mood check · result
               </button>
             </div>
           </div>

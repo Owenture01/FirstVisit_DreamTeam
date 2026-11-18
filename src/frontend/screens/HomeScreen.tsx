@@ -1,5 +1,6 @@
 import React from 'react';
 import { Header } from '../components/Header';
+import { BabyCompanionCard } from '../components/BabyCompanionCard';
 import { BabyHeartbeatCard } from '../components/BabyHeartbeatCard';
 import { MotherVitalsCard } from '../components/MotherVitalsCard';
 import { WearableStatusPill } from '../components/WearableStatusPill';
@@ -8,11 +9,18 @@ import { CriticalAlertBanner } from '../components/CriticalAlertBanner';
 import { FirstScanCard } from '../components/FirstScanCard';
 import { MidwifeTriageBanner } from '../components/MidwifeTriageBanner';
 import { AppScenario } from '../types';
+import { DEFAULT_DUE_DATE } from '../utils/gestationalAge';
 
 interface HomeScreenProps {
   scenario: AppScenario;
+  gestationalWeek?: number;
+  gestationalDay?: number;
+  daysRemaining?: number;
+  dueDate?: string;
   isMidwifeChecking?: boolean;
   isVideoBooked?: boolean;
+  isAlarmMuted?: boolean;
+  onToggleAlarmMute?: () => void;
   onOpenHelp: () => void;
   onOpenHana: () => void;
   onOpenProfile: () => void;
@@ -24,8 +32,14 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   scenario,
+  gestationalWeek = 31,
+  gestationalDay = 4,
+  daysRemaining = 59,
+  dueDate = DEFAULT_DUE_DATE,
   isMidwifeChecking = false,
   isVideoBooked = false,
+  isAlarmMuted = false,
+  onToggleAlarmMute,
   onOpenHelp,
   onOpenHana,
   onOpenProfile,
@@ -34,15 +48,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenWhyWeFlagged = () => {},
   onOpenWhatToDo = () => {},
 }) => {
-  const isEarly = scenario === 'early_pregnancy';
   const isCritical = scenario === 'critical_alert';
+  const isEarly = !isCritical && (scenario === 'early_pregnancy' || gestationalWeek < 16);
 
   return (
     <div className="w-full flex flex-col space-y-3.5 pb-6">
       {/* Top Header */}
       <Header
-        gestationalWeek={isEarly ? 9 : 31}
-        gestationalDay={isEarly ? 2 : 4}
+        gestationalWeek={gestationalWeek}
+        gestationalDay={gestationalDay}
         motherInitials="M"
         onOpenHelp={onOpenHelp}
         onOpenHana={onOpenHana}
@@ -52,28 +66,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Screen 2: Critical Alert View */}
       {isCritical && (
         <>
-          {/* Urgent Red Banner */}
+          {/* Urgent Red Beeping Banner */}
           <CriticalAlertBanner
             bloodPressure="162/112"
             time="21:10"
             doctorName="Noura"
+            isAlarmMuted={isAlarmMuted}
+            onToggleMute={onToggleAlarmMute}
             onCall998={onOpenHelp}
             onHospitalDirections={onOpenHelp}
           />
 
-          {/* Mother Vitals with High HR and Urgent BP */}
+          {/* Mother Vitals with High HR and Critical Flashing BP */}
           <MotherVitalsCard
             heartRate={104}
             heartRateStatus="urgent"
             bloodPressure="162/112"
             bloodPressureStatus="urgent"
-            timeAgo="Just now"
-            nextStepTitle="Sit and rest. Don't drive."
-            nextStepAction="I'm safe"
+            timeAgo="Last reliable reading 21:10"
+            nextStepTitle="Go to A&E now. Don't drive yourself."
+            nextStepAction="Directions"
             nextStepType="safe"
-            onNextStepAction={() => {
-              alert("Safety status confirmed and dispatched to Dr. Noura's clinic console.");
-            }}
+            onNextStepAction={onOpenHelp}
           />
 
           {/* Compact Baby's Heartbeat card */}
@@ -81,6 +95,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             bpm={138}
             compact={true}
             statusText="Normal"
+            compactSubtitle="Last recording 07:30 · clinic reviews it"
             onCardClick={onOpenHana}
           />
 
@@ -95,9 +110,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </>
       )}
 
-      {/* Screen 3: Early Pregnancy View (Week 9) */}
+      {/* Screen 3: Early Pregnancy View (Weeks 4–15) */}
       {isEarly && (
         <>
+          {/* Progressive Baby Size Companion Card */}
+          <BabyCompanionCard
+            gestationalWeek={gestationalWeek}
+            gestationalDay={gestationalDay}
+            daysRemaining={daysRemaining}
+            dueDate={dueDate}
+            isEarly={true}
+            onActionClick={onOpenFirstScanDetails}
+          />
+
           {/* Baby's heartbeat: month 4 or 5 card */}
           <BabyHeartbeatCard
             bpm={0}
@@ -126,7 +151,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             nextStepAction="Done"
             nextStepType="done"
             onNextStepAction={() => {
-              alert("Folic acid (400 mcg) recorded as taken today.");
+              console.log("Folic acid (400 mcg) recorded as taken today.");
             }}
           />
 
@@ -141,9 +166,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </>
       )}
 
-      {/* Screen 1 / Screens 19-23: Week 31 Home & Flag-to-Care View */}
+      {/* Screen 1 / Screens 19-23: Default Home & Flag-to-Care View */}
       {!isCritical && !isEarly && (
         <>
+          {/* Progressive Baby Size Companion Card */}
+          <BabyCompanionCard
+            gestationalWeek={gestationalWeek}
+            gestationalDay={gestationalDay}
+            daysRemaining={daysRemaining}
+            dueDate={dueDate}
+            onActionClick={onOpenFirstScanDetails}
+          />
+
           {/* Hero Baby's Heartbeat card */}
           <BabyHeartbeatCard
             bpm={138}
@@ -172,7 +206,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               nextStepAction="Remind me"
               nextStepType="remind"
               onNextStepAction={() => {
-                alert("Reminder set for cuff blood pressure check at 20:00.");
+                console.log("Reminder set for cuff blood pressure check at 20:00.");
               }}
             />
           )}

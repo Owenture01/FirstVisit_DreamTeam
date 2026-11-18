@@ -29,12 +29,16 @@ export type OnboardingStep =
 
 interface OnboardingFlowProps {
   initialStep?: OnboardingStep;
+  dueDate?: string;
+  onDueDateChange?: (date: string) => void;
   onComplete: () => void;
   onGuestSkip: () => void;
 }
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   initialStep = 'splash',
+  dueDate: controlledDueDate,
+  onDueDateChange,
   onComplete,
   onGuestSkip,
 }) => {
@@ -45,7 +49,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const [fullName, setFullName] = useState('Mariam Khalid');
   const [countryCode, setCountryCode] = useState('+971');
   const [mobileNumber, setMobileNumber] = useState('50 123 4821');
-  const [dueDate, setDueDate] = useState('2027-01-12');
+  const [localDueDate, setLocalDueDate] = useState(controlledDueDate ?? '2027-01-12');
+  const dueDate = controlledDueDate ?? localDueDate;
+  const setDueDate = (next: string) => {
+    setLocalDueDate(next);
+    onDueDateChange?.(next);
+  };
   const [shareReadings, setShareReadings] = useState(true);
   const [shareHealthRecord, setShareHealthRecord] = useState(true);
   const [shareGenome, setShareGenome] = useState(false);

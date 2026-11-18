@@ -3,7 +3,7 @@
  * Complete implementation following design tokens (image_beffec35.png) and layouts (image_1d641382.png)
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Moon, 
   Sun, 
@@ -24,7 +24,7 @@ import { CareScreen } from './frontend/screens/CareScreen';
 import { FamilyScreen } from './frontend/screens/FamilyScreen';
 import { EmergencyModal } from './frontend/components/EmergencyModal';
 import { HardwareSheet } from './frontend/components/HardwareSheet';
-import { HanaChatSheet } from './frontend/components/HanaChatSheet';
+import { HanaChatSheet, HanaView } from './frontend/components/HanaChatSheet';
 import { WhatToDoSheet } from './frontend/components/sheets/WhatToDoSheet';
 import { WhyWeFlaggedSheet } from './frontend/components/sheets/WhyWeFlaggedSheet';
 import { BookVideoCheckSheet } from './frontend/components/sheets/BookVideoCheckSheet';
@@ -33,9 +33,17 @@ import { CuffResultSheet } from './frontend/components/sheets/CuffResultSheet';
 import { MissedCheckSheet } from './frontend/components/sheets/MissedCheckSheet';
 import { ClinicPortalView } from './clinic_app/ClinicPortalView';
 import { ScenarioSidebar } from './frontend/components/ScenarioSidebar';
+import { LockScreenNotification } from './frontend/components/LockScreenNotification';
 import { OnboardingFlow, OnboardingStep } from './frontend/screens/OnboardingFlow';
 import { ScreenTab, AppScenario } from './frontend/types';
 import { fetalAudio } from './frontend/utils/fetalSound';
+import { emergencyAlarm } from './frontend/utils/emergencyAlarm';
+import {
+  DEFAULT_DUE_DATE,
+  DEFAULT_SIMULATED_DATE,
+  calculateGestationalProgress,
+  getDateForGestationalWeek,
+} from './frontend/utils/gestationalAge';
 
 export default function App() {
   // Navigation & Scenario States
@@ -47,12 +55,24 @@ export default function App() {
   const [isVideoBooked, setIsVideoBooked] = useState(false);
   const [isCareVisitDone, setIsCareVisitDone] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLockScreenOpen, setIsLockScreenOpen] = useState(false);
+  const [lockScreenTriggerKey, setLockScreenTriggerKey] = useState(0);
   const [currentAuthScreen, setCurrentAuthScreen] = useState<OnboardingStep | 'authenticated'>('authenticated');
+
+  // Progressive Baby Size Companion Date Simulation State
+  const [dueDate, setDueDate] = useState<string>(DEFAULT_DUE_DATE);
+  const [simulatedDate, setSimulatedDate] = useState<string>(DEFAULT_SIMULATED_DATE);
+  const {
+    gestationalWeek,
+    gestationalDay,
+    daysRemaining,
+  } = calculateGestationalProgress(simulatedDate, dueDate);
 
   // Modal Sheet States
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showHardwareSheet, setShowHardwareSheet] = useState(false);
   const [showHanaChat, setShowHanaChat] = useState(false);
+  const [hanaInitialView, setHanaInitialView] = useState<HanaView>('daily');
   const [showWhatToDoSheet, setShowWhatToDoSheet] = useState(false);
   const [showWhyWeFlaggedSheet, setShowWhyWeFlaggedSheet] = useState(false);
   const [showBookVideoSheet, setShowBookVideoSheet] = useState(false);
@@ -60,6 +80,37 @@ export default function App() {
   const [showCuffResultSheet, setShowCuffResultSheet] = useState(false);
   const [showMissedCheckSheet, setShowMissedCheckSheet] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isAlarmMuted, setIsAlarmMuted] = useState<boolean>(emergencyAlarm.getState().isMuted);
+
+  const isCriticalAlertView =
+    currentAuthScreen === 'authenticated' &&
+    !isClinicPortalActive &&
+    currentTab === 'today' &&
+    scenario === 'critical_alert';
+
+  const isEmergencyActive = isCriticalAlertView || showEmergencyModal;
+
+  useEffect(() => {
+    const unsubscribe = emergencyAlarm.subscribe((_playing, muted) => {
+      setIsAlarmMuted(muted);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (isEmergencyActive) {
+      if (fetalAudio.getIsPlaying()) {
+        fetalAudio.stop();
+        setIsPlayingAudio(false);
+      }
+      emergencyAlarm.start();
+    } else {
+      emergencyAlarm.stop();
+    }
+    return () => {
+      emergencyAlarm.stop();
+    };
+  }, [isEmergencyActive]);
 
   const toggleAudio = () => {
     fetalAudio.toggle(138, (playing) => {
@@ -71,6 +122,11 @@ export default function App() {
     setScenario(newScenario);
     setIsClinicPortalActive(false);
     setIsCareVisitDone(false);
+    if (newScenario === 'early_pregnancy') {
+      setSimulatedDate(getDateForGestationalWeek(dueDate, 9, 2));
+    } else if (newScenario === 'home_week31') {
+      setSimulatedDate(getDateForGestationalWeek(dueDate, 31, 4));
+    }
     if (newScenario === 'critical_alert') {
       setCurrentTab('today');
     }
@@ -84,12 +140,30 @@ export default function App() {
     setShowCuffResultSheet(false);
     setShowMissedCheckSheet(false);
     setShowEmergencyModal(false);
+    setShowHanaChat(false);
+    setIsLockScreenOpen(false);
+  };
+
+  const handleOpenLockScreen = () => {
+    closeAllSheets();
+    setIsClinicPortalActive(false);
+    setCurrentAuthScreen('authenticated');
+    setScenario('home_week31');
+    setSimulatedDate(getDateForGestationalWeek(dueDate, 31, 4));
+    setCurrentTab('today');
+    setLockScreenTriggerKey((prev) => prev + 1);
+    setIsLockScreenOpen(true);
+  };
+
+  const handleOpenHana = () => {
+    setHanaInitialView('daily');
+    setShowHanaChat(true);
   };
 
   return (
     <div className={`min-h-screen w-full transition-colors ${
       isDarkMode ? 'dark bg-[#0E1A20] text-[#F1F6F8]' : 'bg-[#EBF1F4] text-[#0F2733]'
-    } flex flex-col items-center justify-start p-1 sm:p-4 selection:bg-[#0B5F73] selection:text-white relative`}>
+    } flex flex-col items-center justify-start p-0 sm:p-4 selection:bg-[#0B5F73] selection:text-white relative`}>
       
       {/* Dedicated Collapsible Scenario Sidebar Drawer */}
       <ScenarioSidebar
@@ -98,11 +172,20 @@ export default function App() {
         currentTab={currentTab}
         scenario={scenario}
         isClinicPortalActive={isClinicPortalActive}
+        isLockScreenOpen={isLockScreenOpen}
         currentAuthScreen={currentAuthScreen}
         onSelectAuthStep={(step) => {
           closeAllSheets();
           setIsClinicPortalActive(false);
           setCurrentAuthScreen(step);
+        }}
+        onOpenLockScreen={handleOpenLockScreen}
+        onOpenHanaView={(view) => {
+          closeAllSheets();
+          setIsClinicPortalActive(false);
+          setCurrentAuthScreen('authenticated');
+          setHanaInitialView(view);
+          setShowHanaChat(true);
         }}
         onSelectPatientTab={(tab) => {
           closeAllSheets();
@@ -117,6 +200,7 @@ export default function App() {
           handleScenarioChange(scen);
         }}
         onOpenHelp={() => {
+          setIsLockScreenOpen(false);
           setCurrentAuthScreen('authenticated');
           setShowEmergencyModal(true);
         }}
@@ -189,6 +273,34 @@ export default function App() {
           setIsClinicPortalActive(false);
           setCurrentAuthScreen('authenticated');
         }}
+        simulatedDate={simulatedDate}
+        dueDate={dueDate}
+        gestationalWeek={gestationalWeek}
+        gestationalDay={gestationalDay}
+        daysRemaining={daysRemaining}
+        onSimulatedDateChange={(nextDate) => {
+          setSimulatedDate(nextDate);
+          setCurrentAuthScreen('authenticated');
+          setIsClinicPortalActive(false);
+        }}
+        onDueDateChange={(nextDue) => {
+          setDueDate(nextDue);
+          setCurrentAuthScreen('authenticated');
+          setIsClinicPortalActive(false);
+        }}
+        onSelectWeek={(week) => {
+          setSimulatedDate(getDateForGestationalWeek(dueDate, week, 0));
+          setCurrentAuthScreen('authenticated');
+          setIsClinicPortalActive(false);
+          if (scenario === 'critical_alert') {
+            setScenario('home_week31');
+          }
+        }}
+        onResetDateSimulation={() => {
+          setDueDate(DEFAULT_DUE_DATE);
+          setSimulatedDate(DEFAULT_SIMULATED_DATE);
+          setScenario('home_week31');
+        }}
       />
 
       {/* Main Workspace Display (Clean Edge-to-Edge Mobile Container) */}
@@ -204,6 +316,7 @@ export default function App() {
         /* Mobile Web App View (Clean Mobile Layout) */
         <MobileLayout 
           isDark={isDarkMode}
+          isCritical={isCriticalAlertView}
           bottomNav={
             currentAuthScreen === 'authenticated' ? (
               <BottomNav
@@ -212,11 +325,35 @@ export default function App() {
               />
             ) : undefined
           }
+          overlay={
+            <>
+              <HanaChatSheet
+                isOpen={showHanaChat}
+                onClose={() => setShowHanaChat(false)}
+                onOpenHelp={() => {
+                  setShowHanaChat(false);
+                  setShowEmergencyModal(true);
+                }}
+                gestationalWeek={gestationalWeek}
+                initialView={hanaInitialView}
+              />
+              <LockScreenNotification
+                isOpen={isLockScreenOpen}
+                triggerKey={lockScreenTriggerKey}
+                onUnlockComplete={() => {
+                  setIsLockScreenOpen(false);
+                  setCurrentTab('today');
+                }}
+              />
+            </>
+          }
         >
           {/* Active Screen View */}
           {currentAuthScreen !== 'authenticated' ? (
             <OnboardingFlow
               initialStep={currentAuthScreen}
+              dueDate={dueDate}
+              onDueDateChange={(nextDue) => setDueDate(nextDue)}
               onComplete={() => setCurrentAuthScreen('authenticated')}
               onGuestSkip={() => setCurrentAuthScreen('authenticated')}
             />
@@ -225,10 +362,16 @@ export default function App() {
               {currentTab === 'today' && (
                 <HomeScreen
                   scenario={scenario}
+                  gestationalWeek={gestationalWeek}
+                  gestationalDay={gestationalDay}
+                  daysRemaining={daysRemaining}
+                  dueDate={dueDate}
                   isMidwifeChecking={isMidwifeChecking}
                   isVideoBooked={isVideoBooked}
+                  isAlarmMuted={isAlarmMuted}
+                  onToggleAlarmMute={() => emergencyAlarm.toggleMute()}
                   onOpenHelp={() => setShowEmergencyModal(true)}
-                  onOpenHana={() => setShowHanaChat(true)}
+                  onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
                   onOpenHardwareSheet={() => setShowHardwareSheet(true)}
                   onOpenFirstScanDetails={() => setCurrentTab('care')}
@@ -245,8 +388,10 @@ export default function App() {
 
               {currentTab === 'track' && (
                 <TrackScreen
+                  gestationalWeek={gestationalWeek}
+                  gestationalDay={gestationalDay}
                   onOpenHelp={() => setShowEmergencyModal(true)}
-                  onOpenHana={() => setShowHanaChat(true)}
+                  onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
                   onOpenHardwareSheet={() => setShowHardwareSheet(true)}
                 />
@@ -255,15 +400,17 @@ export default function App() {
               {currentTab === 'journey' && (
                 <JourneyScreen
                   onOpenHelp={() => setShowEmergencyModal(true)}
-                  onOpenHana={() => setShowHanaChat(true)}
+                  onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
                 />
               )}
 
               {currentTab === 'care' && (
                 <CareScreen
+                  gestationalWeek={gestationalWeek}
+                  gestationalDay={gestationalDay}
                   onOpenHelp={() => setShowEmergencyModal(true)}
-                  onOpenHana={() => setShowHanaChat(true)}
+                  onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
                   isVisitDone={isCareVisitDone}
                 />
@@ -272,7 +419,7 @@ export default function App() {
               {currentTab === 'family' && (
                 <FamilyScreen
                   onOpenHelp={() => setShowEmergencyModal(true)}
-                  onOpenHana={() => setShowHanaChat(true)}
+                  onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
                 />
               )}
@@ -286,6 +433,9 @@ export default function App() {
         isOpen={showEmergencyModal}
         onClose={() => setShowEmergencyModal(false)}
         currentBP={scenario === 'critical_alert' ? '162/112' : '128/82'}
+        isCriticalBP={scenario === 'critical_alert'}
+        isAlarmMuted={isAlarmMuted}
+        onToggleMute={() => emergencyAlarm.toggleMute()}
       />
 
       <HardwareSheet
@@ -293,12 +443,6 @@ export default function App() {
         onClose={() => setShowHardwareSheet(false)}
         bumpBandBattery={scenario === 'early_pregnancy' ? 0 : 82}
         watchBattery={scenario === 'early_pregnancy' ? 71 : 64}
-      />
-
-      <HanaChatSheet
-        isOpen={showHanaChat}
-        onClose={() => setShowHanaChat(false)}
-        gestationalWeek={scenario === 'early_pregnancy' ? 9 : 31}
       />
 
       {/* Flag to Care Sheets (Screens 19-25) */}

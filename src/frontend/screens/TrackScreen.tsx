@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Header } from '../components/Header';
-import { WearableStatusPill } from '../components/WearableStatusPill';
 
 interface TrackScreenProps {
+  gestationalWeek?: number;
+  gestationalDay?: number;
   onOpenHelp?: () => void;
   onOpenHana?: () => void;
   onOpenProfile?: () => void;
@@ -11,239 +12,295 @@ interface TrackScreenProps {
 }
 
 export const TrackScreen: React.FC<TrackScreenProps> = ({
+  gestationalWeek = 31,
+  gestationalDay = 4,
   onOpenHelp = () => {},
   onOpenHana = () => {},
   onOpenProfile = () => {},
   onOpenHardwareSheet = () => {},
 }) => {
   const [kickCount, setKickCount] = useState(9);
-  const kickGoal = 12;
 
   const handleIncrementKick = () => {
-    setKickCount(prev => prev + 1);
+    setKickCount((prev) => prev + 1);
   };
-
-  const ringPercentage = Math.min(100, Math.round((kickCount / kickGoal) * 100));
-
-  // 7 days of the week for Bump Band wear tracking (5 of 7 days worn)
-  const weekDays = [
-    { day: 'M', worn: true },
-    { day: 'T', worn: true },
-    { day: 'W', worn: false }, // missed day
-    { day: 'T', worn: true },
-    { day: 'F', worn: true },
-    { day: 'S', worn: true },  // or upcoming
-    { day: 'S', worn: false },
-  ];
 
   return (
     <div className="w-full flex flex-col space-y-3.5 pb-6 text-left">
       {/* Header */}
       <Header
-        gestationalWeek={31}
-        gestationalDay={4}
+        gestationalWeek={gestationalWeek}
+        gestationalDay={gestationalDay}
         motherInitials="M"
         onOpenHelp={onOpenHelp}
         onOpenHana={onOpenHana}
         onOpenProfile={onOpenProfile}
       />
 
-      {/* Screen Title */}
-      <div className="px-1 pt-1">
+      {/* Screen Title + Last reliable reading */}
+      <div className="px-1 pt-0.5">
         <h1 className="font-['Figtree'] font-extrabold text-[26px] text-[#0F2733] leading-tight">
           Track
         </h1>
+        <p className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-0.5">
+          Last reliable reading 07:40
+        </p>
       </div>
 
       {/* Card 1: Kicks today */}
-      <div className="w-full bg-[#FBFDFE] rounded-[20px] p-5 border border-slate-200/90 shadow-xs flex items-center justify-between gap-4">
-        {/* Left: Kick progress ring */}
-        <div className="relative w-20 h-20 shrink-0 flex items-center justify-center">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-            <path
-              className="text-[#DDEFF4]"
-              strokeWidth="3.5"
-              stroke="currentColor"
-              fill="none"
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-            />
-            <path
-              className="text-[#0B5F73] transition-all duration-300"
-              strokeDasharray={`${ringPercentage}, 100`}
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              stroke="currentColor"
-              fill="none"
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="font-['Figtree'] font-extrabold text-[26px] text-[#0F2733] tabular-nums leading-none">
-              {kickCount}
-            </span>
-            <span className="text-[11px] text-[#475569] font-medium mt-0.5">
-              of {kickGoal}
-            </span>
+      <div className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h2 className="font-['Figtree'] font-bold text-[18px] text-[#0F2733] leading-snug tabular-nums">
+              Kicks today: {kickCount}
+            </h2>
+            <p className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-1 leading-snug">
+              Aim: 10 in 12 hours
+            </p>
+            <p className="font-['Noto_Sans'] text-[12.5px] text-[#475569] mt-0.5 leading-snug">
+              Counting starts around week 24
+            </p>
           </div>
-        </div>
-
-        {/* Right: Kicks today info & + Kick button */}
-        <div className="flex-1 min-w-0 flex flex-col items-start">
-          <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733] leading-tight">
-            Kicks today
-          </h2>
-          <span className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-0.5 leading-snug">
-            Usual: 8 to 12 by noon
-          </span>
 
           <button
+            type="button"
             onClick={handleIncrementKick}
             aria-label="Log kick"
-            className="mt-3 min-h-[44px] h-10 px-6 rounded-full bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[14px] flex items-center justify-center gap-1.5 hover:bg-[#084857] active:scale-95 transition-all shadow-xs"
+            className="min-h-[44px] h-11 px-5 rounded-full bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[14px] flex items-center justify-center gap-1.5 hover:bg-[#084857] active:scale-95 transition-all shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Kick</span>
           </button>
         </div>
-      </div>
 
-      {/* Card 2: Band this week */}
-      <div className="w-full bg-[#FBFDFE] rounded-[20px] p-5 border border-slate-200/90 shadow-xs">
-        <div className="flex items-center justify-between mb-3.5">
-          <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733]">
-            Band this week
-          </h2>
-          <span className="font-['Noto_Sans'] text-[13px] text-[#475569]">
-            5 of 7 days
-          </span>
-        </div>
-
-        {/* 7 Days tracker boxes */}
-        <div className="flex items-center justify-between gap-2 my-1">
-          {weekDays.map((item, idx) => (
-            <div key={idx} className="flex flex-col items-center gap-1.5 flex-1">
-              <div 
-                className={`w-9 h-9 rounded-[10px] flex items-center justify-center font-['Figtree'] font-bold text-[13px] transition-all ${
-                  item.worn
-                    ? 'bg-[#0B5F73] text-white shadow-xs'
-                    : 'bg-white border-2 border-slate-300 text-[#475569]'
-                }`}
-              >
-                {/* Visual fill indicator matching mockup */}
-              </div>
-              <span className="font-['Noto_Sans'] text-[12px] font-medium text-[#475569]">
-                {item.day}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <p className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-3">
-          Missed a day? That's okay.
+        <p className="font-['Noto_Sans'] font-semibold text-[13px] text-[#B3261E] mt-2.5 leading-snug">
+          Baby moving less? Go to the maternity unit now.
         </p>
       </div>
 
-      {/* Card 3: Last 7 days */}
-      <div className="w-full bg-[#FBFDFE] rounded-[20px] p-5 border border-slate-200/90 shadow-xs">
-        <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733] mb-3">
-          Last 7 days
-        </h2>
+      {/* Card 2: Recording sessions */}
+      <div className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733] leading-snug">
+            Recording sessions
+          </h2>
+          <span className="font-['Noto_Sans'] text-[13px] text-[#475569] shrink-0">
+            5 of 7 done
+          </span>
+        </div>
 
-        <div className="space-y-4">
-          {/* Row 1: Blood pressure */}
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-['Noto_Sans'] text-[14px] text-[#0F2733] min-w-[100px]">
-              Blood pressure
+        <p className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-1">
+          Missed one? That&apos;s okay.
+        </p>
+
+        <h3 className="font-['Figtree'] font-bold text-[14px] text-[#0F2733] mt-2.5">
+          Contractions · none today
+        </h3>
+
+        <div className="font-['Noto_Sans'] text-[12.5px] text-[#475569] leading-[1.45] mt-1">
+          <p>From ~week 26: 20 min, twice daily.</p>
+          <p>CTG: baby heart + contractions.</p>
+          <p>Scheduled sessions, not continuous.</p>
+        </div>
+      </div>
+
+      {/* Card 3: Last 7 days */}
+      <div className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs">
+        <div className="flex items-baseline justify-between gap-2 pb-2.5">
+          <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733] leading-snug">
+            Last 7 days
+          </h2>
+          <span className="font-['Noto_Sans'] text-[12px] text-[#475569] shrink-0">
+            Upper-arm cuff only
+          </span>
+        </div>
+
+        <div>
+          {/* Row 1: Blood pressure (cuff) */}
+          <div className="border-t border-[#DCE5EA] py-2.5 flex items-center justify-between gap-2">
+            <span className="font-['Figtree'] font-semibold text-[13.5px] text-[#0F2733] flex-1 min-w-0">
+              Blood pressure (cuff)
             </span>
-            <div className="flex-1 h-5 flex items-center px-2">
-              <svg viewBox="0 0 100 20" className="w-full h-4 overflow-visible" preserveAspectRatio="none">
-                <path
-                  d="M 0 10 Q 25 7 50 11 T 100 8"
-                  fill="none"
-                  stroke="#0B5F73"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] tabular-nums shrink-0">
+            <svg
+              viewBox="0 0 46 14"
+              className="w-[46px] h-[14px] shrink-0 overflow-visible"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M 0 10 L 7.67 11 L 15.33 8 L 23 9 L 30.67 7 L 38.33 8 L 46 6"
+                stroke="#0B5F73"
+                strokeWidth="1.83"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] tabular-nums w-[54px] text-right shrink-0">
               128/82
             </span>
           </div>
 
-          {/* Row 2: Heart rate */}
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-['Noto_Sans'] text-[14px] text-[#0F2733] min-w-[100px]">
-              Heart rate
+          {/* Row 2: Heart rate (watch) */}
+          <div className="border-t border-[#DCE5EA] py-2.5 flex items-center justify-between gap-2">
+            <span className="font-['Figtree'] font-semibold text-[13.5px] text-[#0F2733] flex-1 min-w-0">
+              Heart rate (watch)
             </span>
-            <div className="flex-1 h-5 flex items-center px-2">
-              <svg viewBox="0 0 100 20" className="w-full h-4 overflow-visible" preserveAspectRatio="none">
-                <path
-                  d="M 0 10 Q 20 13 45 7 T 100 9"
-                  fill="none"
-                  stroke="#0B5F73"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] tabular-nums shrink-0">
+            <svg
+              viewBox="0 0 46 14"
+              className="w-[46px] h-[14px] shrink-0 overflow-visible"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M 0 10 L 7.67 11 L 15.33 8 L 23 9 L 30.67 7 L 38.33 8 L 46 6"
+                stroke="#0B5F73"
+                strokeWidth="1.83"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] tabular-nums w-[54px] text-right shrink-0">
               88
             </span>
           </div>
 
-          {/* Row 3: Oxygen */}
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-['Noto_Sans'] text-[14px] text-[#0F2733] min-w-[100px]">
-              Oxygen
+          {/* Row 3: Sleep (watch) */}
+          <div className="border-t border-[#DCE5EA] py-2.5 flex items-center justify-between gap-2">
+            <span className="font-['Figtree'] font-semibold text-[13.5px] text-[#0F2733] flex-1 min-w-0">
+              Sleep (watch)
             </span>
-            <div className="flex-1 h-5 flex items-center px-2">
-              <svg viewBox="0 0 100 20" className="w-full h-4 overflow-visible" preserveAspectRatio="none">
-                <path
-                  d="M 0 10 Q 30 8 60 10 T 100 8"
-                  fill="none"
-                  stroke="#0B5F73"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] tabular-nums shrink-0">
-              98%
+            <span className="w-[46px] shrink-0" aria-hidden="true" />
+            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] w-[54px] text-right shrink-0">
+              —
             </span>
           </div>
 
-          {/* Row 4: Temperature */}
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-['Noto_Sans'] text-[14px] text-[#0F2733] min-w-[100px]">
-              Temperature
+          {/* Row 4: Temperature trend (watch) */}
+          <div className="border-t border-[#DCE5EA] pt-2.5 pb-0.5 flex items-center justify-between gap-2">
+            <span className="font-['Figtree'] font-semibold text-[13.5px] text-[#0F2733] flex-1 min-w-0">
+              Temperature trend (watch)
             </span>
-            <div className="flex-1 h-5 flex items-center px-2">
-              <svg viewBox="0 0 100 20" className="w-full h-4 overflow-visible" preserveAspectRatio="none">
-                <path
-                  d="M 0 11 Q 30 9 65 11 T 100 10"
-                  fill="none"
-                  stroke="#0B5F73"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <span className="font-['Figtree'] font-extrabold text-[15px] text-[#0F2733] tabular-nums shrink-0">
-              36.8°
-            </span>
+            <svg
+              viewBox="0 0 46 14"
+              className="w-[46px] h-[14px] shrink-0"
+              fill="none"
+              aria-hidden="true"
+            >
+              <line
+                x1="0"
+                y1="7"
+                x2="46"
+                y2="7"
+                stroke="#475569"
+                strokeWidth="1.83"
+                strokeDasharray="3 3"
+              />
+            </svg>
+            <span className="w-[54px] shrink-0" aria-hidden="true" />
           </div>
         </div>
       </div>
 
-      {/* Dual Wearables Sync Status */}
-      <WearableStatusPill
-        bumpBandBattery={82}
-        bumpBandStatus="connected"
-        watchBattery={64}
-        watchStatus="connected"
-        onOpenHardwareSheet={onOpenHardwareSheet}
-      />
+      {/* Hardware Status Pills Row */}
+      <div className="flex items-stretch gap-2">
+        <button
+          type="button"
+          onClick={onOpenHardwareSheet}
+          className="flex-1 min-w-0 min-h-[44px] rounded-[16px] bg-[#FBFDFE] border border-[#DCE5EA] px-3 py-2 flex items-center justify-between gap-2 hover:border-[#0B5F73]/40 active:scale-[0.99] transition-all cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <svg
+              viewBox="0 0 20 14"
+              className="w-[18px] h-[13px] shrink-0 text-[#0F2733]"
+              fill="none"
+              aria-hidden="true"
+            >
+              <rect
+                x="1"
+                y="2"
+                width="18"
+                height="10"
+                rx="5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+              <path
+                d="M6.5 7H13.5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="min-w-0">
+              <span className="font-['Figtree'] font-bold text-[13px] text-[#0F2733] leading-tight block truncate">
+                Band
+              </span>
+              <span className="font-['Noto_Sans'] text-[11px] text-[#475569] leading-tight block truncate">
+                Signal good
+              </span>
+            </div>
+          </div>
+          <span
+            className="w-2 h-2 rounded-full bg-[#15803D] shrink-0"
+            aria-label="Signal good"
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenHardwareSheet}
+          className="min-h-[44px] rounded-[16px] bg-[#FBFDFE] border border-[#DCE5EA] px-3 py-2 flex items-center gap-1.5 hover:border-[#0B5F73]/40 active:scale-[0.99] transition-all cursor-pointer shrink-0"
+        >
+          <svg
+            viewBox="0 0 18 20"
+            className="w-[15px] h-[17px] shrink-0 text-[#0F2733]"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 2.5V4.5M12 2.5V4.5M6 15.5V17.5M12 15.5V17.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            <rect
+              x="3.5"
+              y="4.5"
+              width="11"
+              height="11"
+              rx="3"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+            <path
+              d="M9 7.8V10L10.5 11.2"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="font-['Figtree'] font-bold text-[13px] text-[#0F2733]">
+            Watch
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenHardwareSheet}
+          className="min-h-[44px] rounded-[16px] bg-[#FBFDFE] border border-[#DCE5EA] px-3.5 py-2 flex items-center justify-center hover:border-[#0B5F73]/40 active:scale-[0.99] transition-all cursor-pointer shrink-0"
+        >
+          <span className="font-['Figtree'] font-bold text-[13px] text-[#0F2733]">
+            Cuff
+          </span>
+        </button>
+      </div>
+
+      {/* Bottom Urgent Maternity Unit Warning */}
+      <div className="px-1 pt-0.5 font-['Noto_Sans'] font-semibold text-[13px] text-[#B3261E] leading-snug">
+        <p>Belly pain, bleeding or leaking fluid?</p>
+        <p>Go to the maternity unit now.</p>
+      </div>
     </div>
   );
 };
