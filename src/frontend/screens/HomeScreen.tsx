@@ -28,6 +28,7 @@ interface HomeScreenProps {
   onOpenFirstScanDetails: () => void;
   onOpenWhyWeFlagged?: () => void;
   onOpenWhatToDo?: () => void;
+  onMarkDoseTaken?: (doseId: string) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -47,12 +48,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenFirstScanDetails,
   onOpenWhyWeFlagged = () => {},
   onOpenWhatToDo = () => {},
+  onMarkDoseTaken,
 }) => {
   const isCritical = scenario === 'critical_alert';
   const isEarly = !isCritical && (scenario === 'early_pregnancy' || gestationalWeek < 16);
 
   return (
-    <div className="w-full flex flex-col space-y-3.5 pb-6">
+    <div className="w-full flex-1 flex flex-col space-y-3.5 pb-4">
       {/* Top Header */}
       <Header
         gestationalWeek={gestationalWeek}
@@ -151,7 +153,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             nextStepAction="Done"
             nextStepType="done"
             onNextStepAction={() => {
-              console.log("Folic acid (400 mcg) recorded as taken today.");
+              onMarkDoseTaken?.('folic');
             }}
           />
 
@@ -220,17 +222,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             onOpenHardwareSheet={onOpenHardwareSheet}
           />
 
-          {/* Proactive Hana AI Helper Mascot Card (when not in full triage sheet) */}
+          {/* Popping Hana Proactive Routine Cloud */}
           {!isMidwifeChecking && (
             <HanaCompanion
-              title="Hana · AI helper"
-              message="Only 5 h of sleep. Want a tip?"
-              primaryAction="Yes please"
-              secondaryAction="Later"
-              onYesPlease={onOpenHana}
-              onLater={() => {
-                console.log("Tip snoozed");
-              }}
+              gestationalWeek={gestationalWeek}
+              onOpenChat={onOpenHana}
+              onMarkDoseTaken={onMarkDoseTaken}
             />
           )}
         </>

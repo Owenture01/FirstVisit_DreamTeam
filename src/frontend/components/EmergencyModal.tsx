@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { Phone, X, MapPin, Check, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
 
+export interface EmergencyContextInfo {
+  reason?: string;
+  matchedSymptom?: string;
+  matchedSymptoms?: string[];
+  detectedBP?: string;
+}
+
 interface EmergencyModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -9,6 +16,7 @@ interface EmergencyModalProps {
   isCriticalBP?: boolean;
   isAlarmMuted?: boolean;
   onToggleMute?: () => void;
+  emergencyContext?: EmergencyContextInfo | null;
 }
 
 export const EmergencyModal: React.FC<EmergencyModalProps> = ({
@@ -18,8 +26,9 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   isCriticalBP = true,
   isAlarmMuted = false,
   onToggleMute,
+  emergencyContext = null,
 }) => {
-  // Symptom selection state - "Bad headache" is active by default as shown in Screen 14 mockup
+  // Symptom selection state - syncs with matched red-flag symptoms if triggered by Hana
   const [selectedSymptoms, setSelectedSymptoms] = useState<Record<string, boolean>>({
     'Bad headache': true,
     'Blurry vision': false,
@@ -29,9 +38,42 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
     'Waters broke': false,
   });
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const matchedList =
+      emergencyContext?.matchedSymptoms && emergencyContext.matchedSymptoms.length > 0
+        ? emergencyContext.matchedSymptoms
+        : emergencyContext?.matchedSymptom
+        ? [emergencyContext.matchedSymptom]
+        : [];
+
+    if (matchedList.length > 0) {
+      setSelectedSymptoms({
+        'Bad headache': matchedList.includes('Bad headache'),
+        'Blurry vision': matchedList.includes('Blurry vision'),
+        'Rib pain': matchedList.includes('Rib pain'),
+        'Bleeding': matchedList.includes('Bleeding'),
+        'Fewer kicks': matchedList.includes('Fewer kicks'),
+        'Waters broke': matchedList.includes('Waters broke'),
+      });
+    } else {
+      setSelectedSymptoms({
+        'Bad headache': true,
+        'Blurry vision': false,
+        'Rib pain': false,
+        'Bleeding': false,
+        'Fewer kicks': false,
+        'Waters broke': false,
+      });
+    }
+  }, [isOpen, emergencyContext]);
+
   const [callInitiated, setCallInitiated] = useState(false);
 
   if (!isOpen) return null;
+
+  const effectiveBP = emergencyContext?.detectedBP || currentBP;
+  const showCriticalBP = isCriticalBP || Boolean(emergencyContext?.detectedBP);
 
   const toggleSymptom = (name: string) => {
     setSelectedSymptoms(prev => ({
@@ -59,7 +101,12 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
       {/* Screen 14 · Help: Dynamic beeping red emergency container */}
-      <div className="w-full max-w-[430px] h-full sm:h-auto sm:max-h-[844px] min-h-[640px] animate-emergency-modal text-white rounded-none sm:rounded-[28px] p-6 shadow-2xl flex flex-col justify-between overflow-y-auto relative border border-white/15">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Emergency medical help"
+        className="w-full max-w-[430px] h-full sm:h-auto sm:max-h-[844px] min-h-[640px] animate-emergency-modal text-white rounded-none sm:rounded-[28px] p-6 shadow-2xl flex flex-col justify-between overflow-y-auto relative border border-white/15"
+      >
         
         {/* Top bar: Live Critical BP Beeping Status + Sound Mute Toggle + Close */}
         <div className="w-full flex items-center justify-between gap-2 pt-1">
@@ -70,7 +117,11 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             </span>
             <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
             <span className="tabular-nums">
-              {isCriticalBP ? `BP ${currentBP} · CRITICAL` : 'EMERGENCY HELP'}
+              {showCriticalBP
+                ? `BP ${effectiveBP} · CRITICAL`
+                : emergencyContext?.reason
+                ? 'RED-FLAG ALERT'
+                : 'EMERGENCY HELP'}
             </span>
           </div>
 
@@ -119,6 +170,14 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             <MapPin className="w-4 h-4 fill-white/85" strokeWidth={0} />
             <span>Maternity ER · 12 min</span>
           </div>
+
+          {emergencyContext?.reason && (
+            <div className="rounded-[14px] bg-black/25 border border-white/20 px-3.5 py-2 text-center">
+              <p className="font-['Figtree'] font-bold text-[12.5px] text-white leading-snug">
+                Hana escalated: {emergencyContext.reason}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Section: What's happening? */}

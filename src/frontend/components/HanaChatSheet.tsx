@@ -11,16 +11,32 @@ import {
   X,
   Users,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { HanaAvatar } from './HanaAvatar';
+import { EmergencyContextInfo } from './EmergencyModal';
 
 export type HanaView = 'daily' | 'mental_health' | 'mood_question' | 'mood_result';
+
+export interface LoggedMedicationSummary {
+  name: string;
+  time: string;
+  status: 'taken' | 'due';
+  badgeText?: string;
+}
 
 interface HanaChatSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenHelp?: () => void;
+  onOpenHelp?: (context?: EmergencyContextInfo) => void;
   gestationalWeek?: number;
+  gestationalDay?: number;
+  loggedMedications?: LoggedMedicationSummary[];
+  vitals?: {
+    bp?: string;
+    heartRate?: number;
+    fetalHeartRate?: number;
+  };
   initialView?: HanaView;
 }
 
@@ -29,6 +45,17 @@ interface ChatMessage {
   sender: 'hana' | 'user';
   text: string;
   showSenderLabel?: boolean;
+  isEmergencyAlert?: boolean;
+}
+
+interface CompanionApiResponse {
+  reply?: string;
+  triggerHelpTakeover?: boolean;
+  redFlagReason?: string;
+  matchedSymptom?: string;
+  matchedSymptoms?: string[];
+  detectedBP?: string;
+  error?: string;
 }
 
 const DAILY_INITIAL_MESSAGES: ChatMessage[] = [
@@ -57,24 +84,22 @@ const DAILY_INITIAL_MESSAGES: ChatMessage[] = [
   },
 ];
 
-const DAILY_QUICK_CHIPS: { label: string; prompt: string; reply: string }[] = [
+const DAILY_QUICK_CHIPS: { label: string; prompt: string }[] = [
   {
     label: 'Foods to avoid',
-    prompt: 'Which foods should I avoid for heartburn?',
-    reply:
-      'Try limiting very greasy meals, peppermint, citrus juice, and late-night caffeine. Smaller meals spaced through the day usually help most.',
+    prompt: 'Which foods should I avoid for heartburn during pregnancy?',
   },
   {
     label: 'Iron-rich food',
     prompt: 'What iron-rich foods can I eat?',
-    reply:
-      'Lentils, spinach, chickpeas, and well-cooked lean meats are great. Pair them with a squeeze of lemon or bell pepper for vitamin C absorption.',
   },
   {
     label: 'Coffee?',
-    prompt: 'Can I still have a morning coffee?',
-    reply:
-      'One small coffee (under 200 mg caffeine a day) is generally fine—having it after breakfast rather than on an empty stomach can ease heartburn.',
+    prompt: 'Can I still have a morning coffee while pregnant?',
+  },
+  {
+    label: 'Medicines',
+    prompt: 'Can you remind me which medicines are logged for me today?',
   },
 ];
 
@@ -135,6 +160,9 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
   onClose,
   onOpenHelp = () => {},
   gestationalWeek = 31,
+  gestationalDay = 4,
+  loggedMedications,
+  vitals,
   initialView = 'daily',
 }) => {
   const [activeView, setActiveView] = useState<HanaView>(initialView);
@@ -175,6 +203,20 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
     'Inhale (4s)'
   );
 
+  // Real AI Companion request & emergency takeover state
+  const [isSending, setIsSending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [lastFailedRequest, setLastFailedRequest] = useState<{
+    text: string;
+    mode: 'daily' | 'mental_health';
+    history: ChatMessage[];
+  } | null>(null);
+  const [emergencyTakeoverContext, setEmergencyTakeoverContext] =
+    useState<EmergencyContextInfo | null>(null);
+
+  const threadEndRef = React.useRef<HTMLDivElement | null>(null);
+  const takeoverTimerRef = React.useRef<number | null>(null);
+
   // Mood check question state (Screen 17)
   const [questionIdx, setQuestionIdx] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string>(
@@ -195,8 +237,21 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
       setIsBreathingActive(false);
       setIsCallingNoura(false);
       setShowTimeChoices(false);
+      setChatError(null);
+      setLastFailedRequest(null);
     }
+    return () => {
+      if (takeoverTimerRef.current !== null) {
+        window.clearTimeout(takeoverTimerRef.current);
+        takeoverTimerRef.current = null;
+      }
+    };
   }, [isOpen, initialView]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [isOpen, activeView, dailyMessages.length, mentalMessages.length, isSending, chatError]);
 
   // Breathing cadence loop when breathing exercise is open
   useEffect(() => {
@@ -217,7 +272,87 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSendDaily = (customText?: string, presetReply?: string) => {
+  const requestCompanionReply = async (
+    text: string,
+    mode: 'daily' | 'mental_health',
+    history: ChatMessage[]
+  ) => {
+    setIsSending(true);
+    setChatError(null);
+    setLastFailedRequest(null);
+
+    const setTargetMessages = mode === 'daily' ? setDailyMessages : setMentalMessages;
+
+    try {
+      const response = await fetch('/api/companion/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          mode,
+          gestationalWeek,
+          gestationalDay,
+          memoryTopic,
+          loggedMedications,
+          vitals,
+          history: history.map((m) => ({ sender: m.sender, text: m.text })),
+        }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as CompanionApiResponse;
+
+      if (!response.ok) {
+        setLastFailedRequest({ text, mode, history });
+        setChatError(
+          data.error ||
+            'Unable to reach Hana right now. Please try again, or press Help if this is urgent.'
+        );
+        return;
+      }
+
+      const replyText =
+        data.reply?.trim() ||
+        'I am here with you. Please press Help if you notice any urgent symptoms.';
+      const isEmergency = Boolean(data.triggerHelpTakeover);
+
+      setTargetMessages((prev) => [
+        ...prev,
+        {
+          id: `${mode === 'daily' ? 'dh' : 'mh'}-${Date.now()}`,
+          sender: 'hana',
+          text: replyText,
+          showSenderLabel: true,
+          isEmergencyAlert: isEmergency,
+        },
+      ]);
+
+      if (isEmergency) {
+        const ctx: EmergencyContextInfo = {
+          reason: data.redFlagReason,
+          matchedSymptom: data.matchedSymptom,
+          matchedSymptoms: data.matchedSymptoms,
+          detectedBP: data.detectedBP,
+        };
+        setEmergencyTakeoverContext(ctx);
+        if (takeoverTimerRef.current !== null) {
+          window.clearTimeout(takeoverTimerRef.current);
+        }
+        takeoverTimerRef.current = window.setTimeout(() => {
+          onOpenHelp(ctx);
+        }, 350);
+      }
+    } catch {
+      setLastFailedRequest({ text, mode, history });
+      setChatError(
+        'Network issue reaching Hana. Please try again, or press Help if you have urgent symptoms.'
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSendDaily = (customText?: string) => {
+    if (isSending || emergencyTakeoverContext) return;
     const text = (customText ?? dailyInput).trim();
     if (!text) return;
 
@@ -226,37 +361,16 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
       sender: 'user',
       text,
     };
-    setDailyMessages((prev) => [...prev, userMsg]);
+    const nextHistory = [...dailyMessages, userMsg];
+    setDailyMessages(nextHistory);
     if (!customText) setDailyInput('');
 
-    window.setTimeout(() => {
-      let replyText =
-        presetReply ??
-        `Noted for week ${gestationalWeek}. Keep sipping water slowly—and if you feel strong pain under your ribs or sudden swelling, press Help right away.`;
-      if (!presetReply) {
-        const lower = text.toLowerCase();
-        if (lower.includes('bp') || lower.includes('pressure') || lower.includes('headache')) {
-          replyText =
-            'I cannot diagnose, so please sit calmly for 5 minutes and check with your upper-arm cuff. If BP is 140/90 or above, re-check or press Help.';
-        } else if (lower.includes('kick') || lower.includes('move')) {
-          replyText =
-            'Aim for 10 kicks in 12 hours when resting. If baby is moving less than usual, go to the maternity unit right away.';
-        }
-      }
-      setDailyMessages((prev) => [
-        ...prev,
-        {
-          id: `dh-${Date.now()}`,
-          sender: 'hana',
-          text: replyText,
-          showSenderLabel: true,
-        },
-      ]);
-    }, 380);
+    void requestCompanionReply(text, 'daily', nextHistory);
   };
 
   const handleSelectMood = (mood: MoodTag) => {
     setSelectedMood(mood);
+    setChatError(null);
     const preset = MOOD_USER_MESSAGES[mood];
     setMentalMessages([
       {
@@ -280,26 +394,20 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
   };
 
   const handleSendMental = () => {
+    if (isSending || emergencyTakeoverContext) return;
     const text = mentalInput.trim();
     if (!text) return;
 
-    setMentalMessages((prev) => [
-      ...prev,
-      { id: `mu-${Date.now()}`, sender: 'user', text },
-    ]);
+    const userMsg: ChatMessage = {
+      id: `mu-${Date.now()}`,
+      sender: 'user',
+      text,
+    };
+    const nextHistory = [...mentalMessages, userMsg];
+    setMentalMessages(nextHistory);
     setMentalInput('');
 
-    window.setTimeout(() => {
-      setMentalMessages((prev) => [
-        ...prev,
-        {
-          id: `mh-${Date.now()}`,
-          sender: 'hana',
-          text: "Thank you for sharing that with me. You can breathe together below, or share a short private check with Midwife Noura.",
-          showSenderLabel: true,
-        },
-      ]);
-    }, 380);
+    void requestCompanionReply(text, 'mental_health', nextHistory);
   };
 
   const handleNextQuestion = () => {
@@ -355,7 +463,7 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
 
             <button
               type="button"
-              onClick={onOpenHelp}
+              onClick={() => onOpenHelp(emergencyTakeoverContext ?? undefined)}
               aria-label="Emergency help"
               className="min-h-[38px] h-9 px-3.5 rounded-full bg-[#B3261E] hover:bg-[#8F1D17] text-white font-['Figtree'] font-bold text-[13px] flex items-center gap-1.5 shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
             >
@@ -467,16 +575,38 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
                     ) : (
                       <div
                         key={msg.id}
-                        className="self-start max-w-[82%] rounded-[18px] rounded-tl-[6px] bg-[#FBFDFE] border border-[#DCE5EA] px-3.5 py-2.5 shadow-2xs"
+                        className={`self-start max-w-[82%] rounded-[18px] rounded-tl-[6px] px-3.5 py-2.5 shadow-2xs ${
+                          msg.isEmergencyAlert
+                            ? 'bg-[#FEF2F2] border-2 border-[#B3261E]'
+                            : 'bg-[#FBFDFE] border border-[#DCE5EA]'
+                        }`}
                       >
                         {msg.showSenderLabel && (
-                          <span className="font-['Noto_Sans'] text-[11px] font-semibold text-[#475569] block mb-0.5">
-                            Hana
+                          <span
+                            className={`font-['Noto_Sans'] text-[11px] font-semibold block mb-0.5 ${
+                              msg.isEmergencyAlert ? 'text-[#B3261E]' : 'text-[#475569]'
+                            }`}
+                          >
+                            {msg.isEmergencyAlert ? 'Hana · Urgent alert' : 'Hana'}
                           </span>
                         )}
-                        <p className="font-['Noto_Sans'] text-[13.5px] text-[#0F2733] leading-snug">
+                        <p
+                          className={`font-['Noto_Sans'] text-[13.5px] leading-snug ${
+                            msg.isEmergencyAlert ? 'text-[#7F1D1D] font-semibold' : 'text-[#0F2733]'
+                          }`}
+                        >
                           {msg.text}
                         </p>
+                        {msg.isEmergencyAlert && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenHelp(emergencyTakeoverContext ?? undefined)}
+                            className="mt-2.5 w-full min-h-[38px] px-3 py-1.5 rounded-full bg-[#B3261E] hover:bg-[#8F1D17] text-white font-['Figtree'] font-bold text-[12.5px] flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>Open Emergency Help · Call 998</span>
+                          </button>
+                        )}
                       </div>
                     )
                   )}
@@ -503,15 +633,39 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
                           </p>
                         </div>
                       ) : (
-                        <div className="self-start max-w-[82%] rounded-[18px] rounded-tl-[6px] bg-[#FBFDFE] border border-[#DCE5EA] px-3.5 py-2.5 shadow-2xs">
+                        <div
+                          className={`self-start max-w-[82%] rounded-[18px] rounded-tl-[6px] px-3.5 py-2.5 shadow-2xs ${
+                            msg.isEmergencyAlert
+                              ? 'bg-[#FEF2F2] border-2 border-[#B3261E]'
+                              : 'bg-[#FBFDFE] border border-[#DCE5EA]'
+                          }`}
+                        >
                           {msg.showSenderLabel && (
-                            <span className="font-['Noto_Sans'] text-[11px] font-semibold text-[#475569] block mb-0.5">
-                              Hana
+                            <span
+                              className={`font-['Noto_Sans'] text-[11px] font-semibold block mb-0.5 ${
+                                msg.isEmergencyAlert ? 'text-[#B3261E]' : 'text-[#475569]'
+                              }`}
+                            >
+                              {msg.isEmergencyAlert ? 'Hana · Urgent alert' : 'Hana'}
                             </span>
                           )}
-                          <p className="font-['Noto_Sans'] text-[13.5px] text-[#0F2733] leading-snug">
+                          <p
+                            className={`font-['Noto_Sans'] text-[13.5px] leading-snug ${
+                              msg.isEmergencyAlert ? 'text-[#7F1D1D] font-semibold' : 'text-[#0F2733]'
+                            }`}
+                          >
                             {msg.text}
                           </p>
+                          {msg.isEmergencyAlert && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenHelp(emergencyTakeoverContext ?? undefined)}
+                              className="mt-2.5 w-full min-h-[38px] px-3 py-1.5 rounded-full bg-[#B3261E] hover:bg-[#8F1D17] text-white font-['Figtree'] font-bold text-[12.5px] flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                              <span>Open Emergency Help · Call 998</span>
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -604,68 +758,144 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
                 </div>
               </>
             )}
+
+            {/* Loading Typing Indicator */}
+            {isSending && (
+              <div
+                aria-live="polite"
+                className="self-start max-w-[70%] rounded-[18px] rounded-tl-[6px] bg-[#FBFDFE] border border-[#DCE5EA] px-3.5 py-2.5 shadow-2xs"
+              >
+                <span className="font-['Noto_Sans'] text-[11px] font-semibold text-[#475569] block mb-0.5">
+                  Hana
+                </span>
+                <p className="font-['Noto_Sans'] text-[13px] text-[#475569] animate-pulse">
+                  Hana is typing...
+                </p>
+              </div>
+            )}
+
+            {/* Real Backend Error Banner (never masks upstream errors) */}
+            {chatError && (
+              <div
+                role="alert"
+                className="rounded-[14px] bg-[#FEF2F2] border border-[#F5B7B1] px-3.5 py-2.5 text-[#7F1D1D] flex items-start gap-2.5"
+              >
+                <AlertTriangle className="w-4 h-4 text-[#B3261E] shrink-0 mt-0.5" />
+                <div className="text-[12.5px] font-['Noto_Sans'] leading-snug flex-1">
+                  <p>{chatError}</p>
+                </div>
+                {lastFailedRequest && (
+                  <button
+                    type="button"
+                    disabled={isSending}
+                    onClick={() =>
+                      void requestCompanionReply(
+                        lastFailedRequest.text,
+                        lastFailedRequest.mode,
+                        lastFailedRequest.history
+                      )
+                    }
+                    className="px-3 py-1 rounded-full bg-[#B3261E] hover:bg-[#8F1D17] disabled:opacity-50 text-white font-['Figtree'] font-bold text-[11.5px] shrink-0 cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div ref={threadEndRef} />
           </div>
 
           {/* Bottom Composer Area */}
           <div className="px-4 pt-2.5 pb-3 bg-[#FBFDFE] border-t border-[#DCE5EA] shrink-0">
-            {activeView === 'daily' ? (
-              <div className="flex items-center gap-2 overflow-x-auto pb-2.5 no-scrollbar">
-                {DAILY_QUICK_CHIPS.map((chip) => (
+            {emergencyTakeoverContext ? (
+              <div className="rounded-[14px] bg-[#FBE3E0] border border-[#B3261E]/35 p-3 space-y-2">
+                <p className="font-['Figtree'] font-bold text-[13px] text-[#8B1D16]">
+                  Conversation paused for urgent medical attention.
+                </p>
+                <div className="flex items-center gap-2">
                   <button
-                    key={chip.label}
                     type="button"
-                    onClick={() => handleSendDaily(chip.prompt, chip.reply)}
-                    className="whitespace-nowrap px-3 py-1.5 rounded-full bg-[#DDEFF4] hover:bg-[#cbe4ec] text-[#0B5F73] font-['Figtree'] font-bold text-[12px] transition-colors shrink-0 cursor-pointer"
+                    onClick={() => onOpenHelp(emergencyTakeoverContext)}
+                    className="flex-1 min-h-[42px] rounded-full bg-[#B3261E] hover:bg-[#8F1D17] text-white font-['Figtree'] font-bold text-[13px] flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    {chip.label}
+                    <Phone className="w-4 h-4" />
+                    <span>Call 998 / Open Help</span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setEmergencyTakeoverContext(null)}
+                    className="px-3.5 min-h-[42px] rounded-full bg-white border border-[#DCE5EA] text-[#0F2733] font-['Figtree'] font-semibold text-[12px] cursor-pointer"
+                  >
+                    Resume chat
+                  </button>
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={onOpenHelp}
-                className="w-full mb-2.5 rounded-[10px] bg-[#FBE3E0] hover:bg-[#f7d5d1] px-3 py-2 text-left transition-colors cursor-pointer"
-              >
-                <span className="font-['Noto_Sans'] font-semibold text-[12px] text-[#B3261E] block">
-                  Thoughts of harming yourself or baby? Call 998.
-                </span>
-              </button>
-            )}
+              <>
+                {activeView === 'daily' ? (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2.5 no-scrollbar">
+                    {DAILY_QUICK_CHIPS.map((chip) => (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        disabled={isSending}
+                        onClick={() => handleSendDaily(chip.prompt)}
+                        className="whitespace-nowrap px-3 py-1.5 rounded-full bg-[#DDEFF4] hover:bg-[#cbe4ec] disabled:opacity-50 text-[#0B5F73] font-['Figtree'] font-bold text-[12px] transition-colors shrink-0 cursor-pointer"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenHelp()}
+                    className="w-full mb-2.5 rounded-[10px] bg-[#FBE3E0] hover:bg-[#f7d5d1] px-3 py-2 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-['Noto_Sans'] font-semibold text-[12px] text-[#B3261E] block">
+                      Thoughts of harming yourself or baby? Call 998.
+                    </span>
+                  </button>
+                )}
 
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={activeView === 'daily' ? dailyInput : mentalInput}
-                onChange={(e) =>
-                  activeView === 'daily'
-                    ? setDailyInput(e.target.value)
-                    : setMentalInput(e.target.value)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (activeView === 'daily') {
-                      handleSendDaily();
-                    } else {
-                      handleSendMental();
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={activeView === 'daily' ? dailyInput : mentalInput}
+                    disabled={isSending}
+                    onChange={(e) =>
+                      activeView === 'daily'
+                        ? setDailyInput(e.target.value)
+                        : setMentalInput(e.target.value)
                     }
-                  }
-                }}
-                placeholder="Message Hana"
-                aria-label="Message Hana"
-                className="flex-1 min-h-[44px] h-11 px-4 rounded-full bg-white text-[14px] text-[#0F2733] placeholder:text-[#64748B] border border-[#DCE5EA] focus:outline-none focus:border-[#0B5F73]"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  activeView === 'daily' ? handleSendDaily() : handleSendMental()
-                }
-                aria-label="Send message to Hana"
-                className="w-11 h-11 rounded-full bg-[#0B5F73] hover:bg-[#084857] text-white flex items-center justify-center active:scale-95 transition-all shrink-0 cursor-pointer"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isSending) {
+                        if (activeView === 'daily') {
+                          handleSendDaily();
+                        } else {
+                          handleSendMental();
+                        }
+                      }
+                    }}
+                    placeholder={isSending ? 'Hana is replying...' : 'Message Hana'}
+                    aria-label="Message Hana"
+                    className="flex-1 min-h-[44px] h-11 px-4 rounded-full bg-white text-[14px] text-[#0F2733] placeholder:text-[#64748B] border border-[#DCE5EA] focus:outline-none focus:border-[#0B5F73] disabled:bg-[#F8FAFC]"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSending}
+                    onClick={() =>
+                      activeView === 'daily' ? handleSendDaily() : handleSendMental()
+                    }
+                    aria-label="Send message to Hana"
+                    className="w-11 h-11 rounded-full bg-[#0B5F73] hover:bg-[#084857] disabled:opacity-55 text-white flex items-center justify-center active:scale-95 transition-all shrink-0 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
@@ -880,7 +1110,7 @@ export const HanaChatSheet: React.FC<HanaChatSheetProps> = ({
           {/* Bottom Crisis Callout */}
           <button
             type="button"
-            onClick={onOpenHelp}
+            onClick={() => onOpenHelp()}
             className="w-full rounded-[14px] bg-[#FBE3E0] hover:bg-[#f7d5d1] px-4 py-3 text-left transition-colors cursor-pointer"
           >
             <span className="font-['Noto_Sans'] font-semibold text-[12.5px] text-[#B3261E] leading-snug block">

@@ -22,7 +22,7 @@ import { TrackScreen } from './frontend/screens/TrackScreen';
 import { JourneyScreen } from './frontend/screens/JourneyScreen';
 import { CareScreen } from './frontend/screens/CareScreen';
 import { FamilyScreen } from './frontend/screens/FamilyScreen';
-import { EmergencyModal } from './frontend/components/EmergencyModal';
+import { EmergencyModal, EmergencyContextInfo } from './frontend/components/EmergencyModal';
 import { HardwareSheet } from './frontend/components/HardwareSheet';
 import { HanaChatSheet, HanaView } from './frontend/components/HanaChatSheet';
 import { WhatToDoSheet } from './frontend/components/sheets/WhatToDoSheet';
@@ -33,11 +33,18 @@ import { CuffResultSheet } from './frontend/components/sheets/CuffResultSheet';
 import { MissedCheckSheet } from './frontend/components/sheets/MissedCheckSheet';
 import { ClinicPortalView } from './clinic_app/ClinicPortalView';
 import { ScenarioSidebar } from './frontend/components/ScenarioSidebar';
-import { LockScreenNotification } from './frontend/components/LockScreenNotification';
+import { LockScreenNotification, LockScreenMode } from './frontend/components/LockScreenNotification';
+import { PhoneHomeScreen } from './frontend/components/PhoneHomeScreen';
 import { OnboardingFlow, OnboardingStep } from './frontend/screens/OnboardingFlow';
 import { ScreenTab, AppScenario } from './frontend/types';
 import { fetalAudio } from './frontend/utils/fetalSound';
 import { emergencyAlarm } from './frontend/utils/emergencyAlarm';
+import {
+  INITIAL_TODAY_DOSES,
+  TodayDoseItem,
+  markDoseTaken,
+  toggleDoseStatus,
+} from './frontend/utils/careMedicines';
 import {
   DEFAULT_DUE_DATE,
   DEFAULT_SIMULATED_DATE,
@@ -56,7 +63,11 @@ export default function App() {
   const [isCareVisitDone, setIsCareVisitDone] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLockScreenOpen, setIsLockScreenOpen] = useState(false);
+  const [lockScreenMode, setLockScreenMode] = useState<LockScreenMode>('morning');
   const [lockScreenTriggerKey, setLockScreenTriggerKey] = useState(0);
+  const [isPhoneHomeOpen, setIsPhoneHomeOpen] = useState(false);
+  const [phoneHomeTriggerKey, setPhoneHomeTriggerKey] = useState(0);
+  const [todayDoses, setTodayDoses] = useState<TodayDoseItem[]>(INITIAL_TODAY_DOSES);
   const [currentAuthScreen, setCurrentAuthScreen] = useState<OnboardingStep | 'authenticated'>('authenticated');
 
   // Progressive Baby Size Companion Date Simulation State
@@ -70,6 +81,7 @@ export default function App() {
 
   // Modal Sheet States
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [emergencyContext, setEmergencyContext] = useState<EmergencyContextInfo | null>(null);
   const [showHardwareSheet, setShowHardwareSheet] = useState(false);
   const [showHanaChat, setShowHanaChat] = useState(false);
   const [hanaInitialView, setHanaInitialView] = useState<HanaView>('daily');
@@ -142,17 +154,38 @@ export default function App() {
     setShowEmergencyModal(false);
     setShowHanaChat(false);
     setIsLockScreenOpen(false);
+    setIsPhoneHomeOpen(false);
   };
 
-  const handleOpenLockScreen = () => {
+  const handleOpenLockScreen = (mode: LockScreenMode = 'morning') => {
     closeAllSheets();
     setIsClinicPortalActive(false);
     setCurrentAuthScreen('authenticated');
     setScenario('home_week31');
     setSimulatedDate(getDateForGestationalWeek(dueDate, 31, 4));
     setCurrentTab('today');
+    setLockScreenMode(mode);
     setLockScreenTriggerKey((prev) => prev + 1);
     setIsLockScreenOpen(true);
+  };
+
+  const handleOpenPhoneHomeScreen = () => {
+    closeAllSheets();
+    setIsClinicPortalActive(false);
+    setCurrentAuthScreen('authenticated');
+    setScenario('home_week31');
+    setSimulatedDate(getDateForGestationalWeek(dueDate, 31, 4));
+    setCurrentTab('today');
+    setPhoneHomeTriggerKey((prev) => prev + 1);
+    setIsPhoneHomeOpen(true);
+  };
+
+  const handleToggleDose = (doseId: string) => {
+    setTodayDoses((prev) => toggleDoseStatus(prev, doseId));
+  };
+
+  const handleMarkDoseTaken = (doseId: string) => {
+    setTodayDoses((prev) => markDoseTaken(prev, doseId));
   };
 
   const handleOpenHana = () => {
@@ -173,13 +206,17 @@ export default function App() {
         scenario={scenario}
         isClinicPortalActive={isClinicPortalActive}
         isLockScreenOpen={isLockScreenOpen}
+        lockScreenMode={lockScreenMode}
+        isPhoneHomeOpen={isPhoneHomeOpen}
         currentAuthScreen={currentAuthScreen}
         onSelectAuthStep={(step) => {
           closeAllSheets();
           setIsClinicPortalActive(false);
           setCurrentAuthScreen(step);
         }}
-        onOpenLockScreen={handleOpenLockScreen}
+        onOpenLockScreen={() => handleOpenLockScreen('morning')}
+        onOpenRoutineLockScreen={() => handleOpenLockScreen('routine')}
+        onOpenPhoneHomeScreen={handleOpenPhoneHomeScreen}
         onOpenHanaView={(view) => {
           closeAllSheets();
           setIsClinicPortalActive(false);
@@ -191,6 +228,9 @@ export default function App() {
           closeAllSheets();
           setIsClinicPortalActive(false);
           setCurrentAuthScreen('authenticated');
+          if (tab === 'care') {
+            setIsCareVisitDone(false);
+          }
           setCurrentTab(tab);
         }}
         onSelectScenario={(scen) => {
@@ -330,18 +370,44 @@ export default function App() {
               <HanaChatSheet
                 isOpen={showHanaChat}
                 onClose={() => setShowHanaChat(false)}
-                onOpenHelp={() => {
+                onOpenHelp={(ctx) => {
+                  setEmergencyContext(ctx ?? null);
                   setShowHanaChat(false);
                   setShowEmergencyModal(true);
                 }}
                 gestationalWeek={gestationalWeek}
+                gestationalDay={gestationalDay}
+                loggedMedications={todayDoses.map((d) => ({
+                  name: d.name,
+                  time: d.time,
+                  status: d.status,
+                  badgeText: d.badgeText,
+                }))}
+                vitals={{
+                  bp: scenario === 'critical_alert' ? '162/112' : '128/82',
+                  heartRate: scenario === 'critical_alert' ? 104 : 88,
+                  fetalHeartRate: 138,
+                }}
                 initialView={hanaInitialView}
               />
               <LockScreenNotification
                 isOpen={isLockScreenOpen}
                 triggerKey={lockScreenTriggerKey}
+                mode={lockScreenMode}
+                gestationalWeek={gestationalWeek}
+                onMarkDoseTaken={handleMarkDoseTaken}
                 onUnlockComplete={() => {
                   setIsLockScreenOpen(false);
+                  setCurrentTab('today');
+                }}
+              />
+              <PhoneHomeScreen
+                isOpen={isPhoneHomeOpen}
+                triggerKey={phoneHomeTriggerKey}
+                gestationalWeek={gestationalWeek}
+                onMarkDoseTaken={handleMarkDoseTaken}
+                onLaunchFirstVisit={() => {
+                  setIsPhoneHomeOpen(false);
                   setCurrentTab('today');
                 }}
               />
@@ -383,6 +449,7 @@ export default function App() {
                     closeAllSheets();
                     setShowWhatToDoSheet(true);
                   }}
+                  onMarkDoseTaken={handleMarkDoseTaken}
                 />
               )}
 
@@ -413,6 +480,8 @@ export default function App() {
                   onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
                   isVisitDone={isCareVisitDone}
+                  todayDoses={todayDoses}
+                  onToggleDose={handleToggleDose}
                 />
               )}
 
@@ -431,11 +500,15 @@ export default function App() {
       {/* Interactive Overlays & Sheets */}
       <EmergencyModal
         isOpen={showEmergencyModal}
-        onClose={() => setShowEmergencyModal(false)}
+        onClose={() => {
+          setShowEmergencyModal(false);
+          setEmergencyContext(null);
+        }}
         currentBP={scenario === 'critical_alert' ? '162/112' : '128/82'}
         isCriticalBP={scenario === 'critical_alert'}
         isAlarmMuted={isAlarmMuted}
         onToggleMute={() => emergencyAlarm.toggleMute()}
+        emergencyContext={emergencyContext}
       />
 
       <HardwareSheet
@@ -452,6 +525,9 @@ export default function App() {
         onCall998={() => {
           setShowWhatToDoSheet(false);
           setShowEmergencyModal(true);
+        }}
+        onAppointmentBooked={() => {
+          setIsVideoBooked(true);
         }}
       />
 

@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Heart, Lock, Unlock } from 'lucide-react';
 import { HanaAvatar } from './HanaAvatar';
+import {
+  getNextPromptIndex,
+  getProactivePromptsForWeek,
+} from '../utils/hanaProactivePrompts';
+
+export type LockScreenMode = 'morning' | 'routine';
 
 interface LockScreenNotificationProps {
   isOpen: boolean;
   triggerKey: number;
+  mode?: LockScreenMode;
+  gestationalWeek?: number;
   onUnlockComplete: () => void;
+  onMarkDoseTaken?: (doseId: string) => void;
 }
 
 type NotificationPhase = 'waiting' | 'visible' | 'dismissed';
@@ -14,11 +23,21 @@ type UnlockPhase = 'locked' | 'face_scanning' | 'face_verified' | 'sliding_up';
 export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
   isOpen,
   triggerKey,
+  mode = 'morning',
+  gestationalWeek = 31,
   onUnlockComplete,
+  onMarkDoseTaken,
 }) => {
+  const prompts = getProactivePromptsForWeek(gestationalWeek);
   const [notificationPhase, setNotificationPhase] =
     useState<NotificationPhase>('waiting');
   const [unlockPhase, setUnlockPhase] = useState<UnlockPhase>('locked');
+  const [promptIndex, setPromptIndex] = useState(0);
+  const [toastCycle, setToastCycle] = useState(0);
+  const [routineConfirmation, setRoutineConfirmation] = useState<string | null>(
+    null
+  );
+  const [isPaused, setIsPaused] = useState(false);
   const timersRef = React.useRef<number[]>([]);
 
   const clearUnlockTimers = () => {
@@ -32,12 +51,23 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
     if (!isOpen) {
       setNotificationPhase('waiting');
       setUnlockPhase('locked');
+      setRoutineConfirmation(null);
       return;
     }
 
-    setNotificationPhase('waiting');
     setUnlockPhase('locked');
+    setPromptIndex(0);
+    setToastCycle((c) => c + 1);
+    setRoutineConfirmation(null);
 
+    if (mode === 'routine') {
+      setNotificationPhase('visible');
+      return () => {
+        clearUnlockTimers();
+      };
+    }
+
+    setNotificationPhase('waiting');
     const popTimer = window.setTimeout(() => {
       setNotificationPhase('visible');
     }, 2000);
@@ -46,11 +76,57 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
       window.clearTimeout(popTimer);
       clearUnlockTimers();
     };
-  }, [isOpen, triggerKey]);
+  }, [isOpen, triggerKey, mode]);
+
+  // Rotate routine notifications every 3s in routine toast mode
+  useEffect(() => {
+    if (
+      !isOpen ||
+      mode !== 'routine' ||
+      notificationPhase !== 'visible' ||
+      unlockPhase !== 'locked' ||
+      isPaused ||
+      routineConfirmation
+    ) {
+      return;
+    }
+
+    const cycleTimer = window.setInterval(() => {
+      setPromptIndex((prev) => getNextPromptIndex(prev, prompts.length));
+      setToastCycle((prev) => prev + 1);
+    }, 3000);
+
+    return () => window.clearInterval(cycleTimer);
+  }, [
+    isOpen,
+    mode,
+    notificationPhase,
+    unlockPhase,
+    isPaused,
+    routineConfirmation,
+    prompts.length,
+  ]);
 
   const handleLater = () => {
     if (unlockPhase !== 'locked') return;
     setNotificationPhase('dismissed');
+  };
+
+  const handleRoutinePrimary = () => {
+    if (unlockPhase !== 'locked') return;
+    const activePrompt = prompts[promptIndex % prompts.length];
+
+    if (activePrompt.linkedDoseId && onMarkDoseTaken) {
+      onMarkDoseTaken(activePrompt.linkedDoseId);
+    }
+
+    setRoutineConfirmation(activePrompt.confirmationText);
+    const nextTimer = window.setTimeout(() => {
+      setRoutineConfirmation(null);
+      setPromptIndex((prev) => getNextPromptIndex(prev, prompts.length));
+      setToastCycle((prev) => prev + 1);
+    }, 1600);
+    timersRef.current.push(nextTimer);
   };
 
   const handleReplyOrUnlock = () => {
@@ -80,15 +156,18 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
   const showNotificationCard =
     notificationPhase === 'visible' || notificationPhase === 'dismissed';
   const isNotificationFadedOut = notificationPhase === 'dismissed';
+  const activePrompt = prompts[promptIndex % prompts.length];
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="iPhone lock screen notification"
-      className={`absolute inset-0 z-[35] flex flex-col justify-between px-4 pt-6 pb-3 select-none bg-gradient-to-b from-[#0B5F73] via-[#27778B] to-[#5B9CAE] text-white transition-transform duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isSlidingUp ? '-translate-y-full' : 'translate-y-0'
-      }`}
+      className={`absolute inset-0 z-[35] flex flex-col justify-between px-4 pt-6 pb-3 select-none text-white transition-transform duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        mode === 'routine'
+          ? 'bg-gradient-to-b from-[#3E5661] via-[#46606D] to-[#526D79]'
+          : 'bg-gradient-to-b from-[#0B5F73] via-[#27778B] to-[#5B9CAE]'
+      } ${isSlidingUp ? '-translate-y-full' : 'translate-y-0'}`}
     >
       {/* Top Lock & iPhone Face ID Dynamic Island Pill */}
       <div className="flex flex-col items-center pt-1 min-h-[42px]">
@@ -101,7 +180,6 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
             {unlockPhase === 'face_scanning' ? (
               <>
                 <div className="relative w-6 h-6 flex items-center justify-center">
-                  {/* Face ID corner brackets */}
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -146,20 +224,103 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
       </div>
 
       {/* Main Lock Screen Clock + Pop-up Notification */}
-      <div className="flex-1 flex flex-col items-center pt-5">
-        {/* Lock Screen Time & Date */}
-        <div className="text-center">
-          <div className="font-['Figtree'] font-extrabold text-[64px] leading-none tracking-tight text-white tabular-nums">
-            07:45
+      <div className="flex-1 flex flex-col items-center pt-4">
+        {/* Lock Screen Date & Time */}
+        {mode === 'routine' ? (
+          <div className="text-center">
+            <p className="font-['Noto_Sans'] text-[15px] text-[#E2EEF2]">
+              Thursday, 14 November
+            </p>
+            <div className="font-['Figtree'] font-extrabold text-[66px] leading-none tracking-tight text-white tabular-nums mt-1.5">
+              20:00
+            </div>
           </div>
-          <p className="font-['Noto_Sans'] text-[16px] text-[#E6F2F5] mt-2">
-            Thursday, 12 November
-          </p>
-        </div>
+        ) : (
+          <div className="text-center">
+            <div className="font-['Figtree'] font-extrabold text-[64px] leading-none tracking-tight text-white tabular-nums">
+              07:45
+            </div>
+            <p className="font-['Noto_Sans'] text-[16px] text-[#E6F2F5] mt-2">
+              Thursday, 12 November
+            </p>
+          </div>
+        )}
 
-        {/* Notification Slot (appears after 2s; fades into transparent background on Later) */}
-        <div className="w-full mt-11">
-          {showNotificationCard && (
+        {/* Notification Slot */}
+        <div
+          className={`w-full ${mode === 'routine' ? 'mt-8' : 'mt-11'}`}
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onFocus={() => setIsPaused(true)}
+          onBlur={() => setIsPaused(false)}
+        >
+          {showNotificationCard && mode === 'routine' && (
+            <div
+              key={`${activePrompt.id}-${toastCycle}`}
+              className={`w-full transition-all duration-500 ease-out ${
+                isNotificationFadedOut
+                  ? 'opacity-0 scale-[0.97] -translate-y-1 pointer-events-none'
+                  : 'opacity-100 scale-100 translate-y-0 animate-lock-pop'
+              }`}
+            >
+              {/* Frosted Toast Card (18b) */}
+              <div className="w-full rounded-[22px] bg-white/95 backdrop-blur-md p-4 shadow-[0_14px_34px_rgba(6,38,48,0.22)] text-left">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-[#DDEFF4]/80 border border-[#DCE5EA] flex items-center justify-center overflow-hidden shrink-0">
+                      <HanaAvatar size="sm" />
+                    </div>
+                    <span className="font-['Figtree'] font-bold text-[11.5px] tracking-wide uppercase text-[#475569]">
+                      HANA · FIRSTVISIT
+                    </span>
+                  </div>
+                  <span className="font-['Noto_Sans'] text-[12px] text-[#475569]">
+                    now
+                  </span>
+                </div>
+
+                {routineConfirmation ? (
+                  <div className="py-2 px-3 rounded-[14px] bg-[#DCFCE7] text-[#15803D] font-['Figtree'] font-bold text-[14px] flex items-center gap-2">
+                    <Check className="w-4 h-4 stroke-[2.6] shrink-0" />
+                    <span>{routineConfirmation}</span>
+                  </div>
+                ) : (
+                  <>
+                    <h2 className="font-['Figtree'] font-bold text-[16px] text-[#0F2733] leading-snug">
+                      {activePrompt.toastTitle}
+                    </h2>
+                    <p className="font-['Noto_Sans'] text-[13.5px] text-[#334155] leading-snug mt-0.5">
+                      {activePrompt.toastSubtitle}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Stacked iOS Action Tray (Yes, taken / Not yet) */}
+              {!routineConfirmation && (
+                <div className="w-full rounded-[20px] bg-white/95 backdrop-blur-md divide-y divide-[#DCE5EA] overflow-hidden shadow-[0_14px_34px_rgba(6,38,48,0.2)] mt-2.5">
+                  <button
+                    type="button"
+                    onClick={handleRoutinePrimary}
+                    disabled={unlockPhase !== 'locked' || isNotificationFadedOut}
+                    className="w-full min-h-[48px] px-4 py-3 text-left font-['Figtree'] font-bold text-[15px] text-[#0F2733] hover:bg-[#F1F6F8] active:bg-[#DDEFF4]/60 transition-colors cursor-pointer"
+                  >
+                    {activePrompt.primaryAction}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLater}
+                    disabled={unlockPhase !== 'locked' || isNotificationFadedOut}
+                    className="w-full min-h-[48px] px-4 py-3 text-left font-['Figtree'] font-semibold text-[15px] text-[#0F2733] hover:bg-[#F1F6F8] active:bg-[#DDEFF4]/60 transition-colors cursor-pointer"
+                  >
+                    {activePrompt.secondaryAction}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showNotificationCard && mode === 'morning' && (
             <div
               className={`w-full transition-all duration-500 ease-out ${
                 isNotificationFadedOut
@@ -167,7 +328,7 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
                   : 'opacity-100 scale-100 translate-y-0 animate-lock-pop'
               }`}
             >
-              {/* Frosted White Notification Card */}
+              {/* Frosted White Notification Card (08 · Morning Check-in) */}
               <div className="w-full rounded-[22px] bg-white/95 backdrop-blur-md p-4 shadow-[0_14px_34px_rgba(6,38,48,0.22)] text-left">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -220,16 +381,37 @@ export const LockScreenNotification: React.FC<LockScreenNotificationProps> = ({
               </div>
             </div>
           )}
+
+          {isNotificationFadedOut && mode === 'routine' && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setPromptIndex((prev) => getNextPromptIndex(prev, prompts.length));
+                  setToastCycle((prev) => prev + 1);
+                  setNotificationPhase('visible');
+                }}
+                className="px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-[12px] font-['Figtree'] font-semibold backdrop-blur-xs transition-colors cursor-pointer"
+              >
+                Show next check-in toast
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Bottom iPhone Home Indicator */}
-      <div className="flex flex-col items-center pb-1">
+      {/* Bottom Footer + iPhone Home Indicator */}
+      <div className="flex flex-col items-center pb-1 gap-2">
+        {mode === 'routine' && (
+          <p className="font-['Noto_Sans'] text-[12px] text-white/80 text-center max-w-[260px] leading-snug">
+            One tap on the message. No app to open, nothing to fill in.
+          </p>
+        )}
         <button
           type="button"
           onClick={handleReplyOrUnlock}
           aria-label="Unlock FirstVisit with Face ID"
-          className="min-h-[44px] w-40 flex items-end justify-center pb-1 cursor-pointer group focus:outline-none"
+          className="min-h-[44px] w-44 flex items-end justify-center pb-1 cursor-pointer group focus:outline-none"
         >
           <span className="w-[124px] h-[4.5px] rounded-full bg-white/75 group-hover:bg-white transition-colors block" />
         </button>

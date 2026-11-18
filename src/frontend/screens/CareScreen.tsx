@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
-import { Video, Timer, Clock, Pill, Calendar, Check } from 'lucide-react';
+import { Clock, Pill, Calendar, Check } from 'lucide-react';
 import { Header } from '../components/Header';
+import {
+  INITIAL_TODAY_DOSES,
+  INITIAL_WEEK_DOTS,
+  TodayDoseItem,
+  computeCareDoseSummary,
+  toggleDoseStatus,
+} from '../utils/careMedicines';
 
 interface CareScreenProps {
   gestationalWeek?: number;
@@ -9,48 +16,9 @@ interface CareScreenProps {
   onOpenHana?: () => void;
   onOpenProfile?: () => void;
   isVisitDone?: boolean;
+  todayDoses?: TodayDoseItem[];
+  onToggleDose?: (doseId: string) => void;
 }
-
-interface MedicineRow {
-  id: string;
-  title: string;
-  subtitle?: string;
-  days: boolean[];
-}
-
-const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
-
-const INITIAL_MEDICINES: MedicineRow[] = [
-  {
-    id: 'folic',
-    title: 'Folic acid · morning',
-    days: [true, true, true, false, false, false, false],
-  },
-  {
-    id: 'iron',
-    title: 'Iron · evening',
-    subtitle: '(prescribed after blood test)',
-    days: [true, true, true, false, false, false, false],
-  },
-  {
-    id: 'aspirin',
-    title: 'Aspirin · evening (Dr. Layla)',
-    days: [true, true, true, false, false, false, false],
-  },
-];
-
-const EXTRA_PRESCRIPTION_OPTIONS: Omit<MedicineRow, 'days'>[] = [
-  {
-    id: 'vitd',
-    title: 'Vitamin D · morning (Dr. Layla)',
-    subtitle: '(2000 IU daily)',
-  },
-  {
-    id: 'calcium',
-    title: 'Calcium · midday (Dr. Layla)',
-    subtitle: '(take 2h apart from iron)',
-  },
-];
 
 export const CareScreen: React.FC<CareScreenProps> = ({
   gestationalWeek = 31,
@@ -59,24 +27,16 @@ export const CareScreen: React.FC<CareScreenProps> = ({
   onOpenHana = () => {},
   onOpenProfile = () => {},
   isVisitDone: initialVisitDone = false,
+  todayDoses: controlledDoses,
+  onToggleDose: controlledToggleDose,
 }) => {
   const [isVisitDone, setIsVisitDone] = useState(initialVisitDone);
+  const [localDoses, setLocalDoses] = useState<TodayDoseItem[]>(INITIAL_TODAY_DOSES);
+  const todayDoses = controlledDoses ?? localDoses;
 
   React.useEffect(() => {
     setIsVisitDone(initialVisitDone);
   }, [initialVisitDone]);
-
-  const [medicines, setMedicines] = useState<MedicineRow[]>(INITIAL_MEDICINES);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
-  const [showPrescriptionDrawer, setShowPrescriptionDrawer] = useState(false);
-
-  const timeSlots = [
-    'Thursday · 09:30 AM',
-    'Thursday · 02:30 PM',
-    'Friday · 11:00 AM',
-    'Friday · 04:00 PM',
-  ];
 
   const triageSteps = [
     { label: 'Flagged', done: true },
@@ -86,40 +46,15 @@ export const CareScreen: React.FC<CareScreenProps> = ({
     { label: 'Seen', done: true },
   ];
 
-  const toggleMedicineDay = (medId: string, dayIdx: number) => {
-    setMedicines((prev) =>
-      prev.map((med) =>
-        med.id === medId
-          ? {
-              ...med,
-              days: med.days.map((checked, idx) =>
-                idx === dayIdx ? !checked : checked
-              ),
-            }
-          : med
-      )
-    );
+  const handleToggleDose = (doseId: string) => {
+    if (controlledToggleDose) {
+      controlledToggleDose(doseId);
+    } else {
+      setLocalDoses((prev) => toggleDoseStatus(prev, doseId));
+    }
   };
 
-  const addPrescriptionMedicine = (item: Omit<MedicineRow, 'days'>) => {
-    setMedicines((prev) => {
-      if (prev.some((m) => m.id === item.id)) {
-        return prev;
-      }
-      return [
-        ...prev,
-        {
-          ...item,
-          days: [false, false, false, false, false, false, false],
-        },
-      ];
-    });
-    setShowPrescriptionDrawer(false);
-  };
-
-  const availableExtras = EXTRA_PRESCRIPTION_OPTIONS.filter(
-    (opt) => !medicines.some((m) => m.id === opt.id)
-  );
+  const summary = computeCareDoseSummary(todayDoses);
 
   return (
     <div className="w-full flex flex-col space-y-3.5 pb-6 text-left">
@@ -133,23 +68,21 @@ export const CareScreen: React.FC<CareScreenProps> = ({
         onOpenProfile={onOpenProfile}
       />
 
-      {/* Screen Title & Loop status toggle */}
+      {/* Screen Title */}
       <div className="px-1 pt-0.5 flex items-center justify-between gap-2">
         <h1 className="font-['Figtree'] font-extrabold text-[26px] text-[#0F2733] leading-tight">
           Care
         </h1>
 
-        <button
-          type="button"
-          onClick={() => setIsVisitDone(!isVisitDone)}
-          className={`min-h-[36px] text-[11px] font-['Figtree'] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
-            isVisitDone
-              ? 'bg-[#DCFCE7] text-[#15803D] border-[#15803D]/40'
-              : 'bg-[#FBFDFE] text-[#0B5F73] border-[#DCE5EA]'
-          }`}
-        >
-          {isVisitDone ? 'View: 24 · Visit done ✓' : 'View: 12 · Plan & medicines'}
-        </button>
+        {isVisitDone && (
+          <button
+            type="button"
+            onClick={() => setIsVisitDone(false)}
+            className="min-h-[36px] text-[12px] font-['Figtree'] font-bold px-3 py-1 rounded-full border bg-[#FBFDFE] text-[#0B5F73] border-[#DCE5EA] hover:bg-[#DDEFF4]/50 transition-colors cursor-pointer"
+          >
+            Back to medicines
+          </button>
+        )}
       </div>
 
       {/* Screen 24 · Visit Done View */}
@@ -261,193 +194,124 @@ export const CareScreen: React.FC<CareScreenProps> = ({
           </div>
         </>
       ) : (
-        /* Screen 12 · Your plan & Medicine box */
+        /* Screen 12 · Care · medicines */
         <>
-          {/* Card 1: Your plan */}
-          <div className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs">
-            <div className="flex items-center justify-between mb-3.5">
-              <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733]">
-                Your plan
-              </h2>
-              <span className="px-3 py-1 rounded-full bg-[#DDEFF4] text-[#0B5F73] font-['Figtree'] font-bold text-[12px]">
-                By Dr. Layla
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[12px] bg-[#DDEFF4] text-[#0B5F73] flex items-center justify-center shrink-0">
-                  <Video className="w-5 h-5" strokeWidth={2} />
-                </div>
-                <span className="font-['Noto_Sans'] font-semibold text-[14.5px] text-[#0F2733] leading-snug">
-                  Urine protein check · clinic · Thu 9:30
-                </span>
+          {/* Card 1: Next dose hero card */}
+          <section
+            aria-label="Next dose reminder"
+            className="w-full rounded-[22px] bg-[#0B5F73] text-white p-5 shadow-xs"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                <Pill className="w-6 h-6 text-white" strokeWidth={2.2} />
               </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[12px] bg-[#DDEFF4] text-[#0B5F73] flex items-center justify-center shrink-0">
-                  <Timer className="w-5 h-5" strokeWidth={2} />
-                </div>
-                <span className="font-['Noto_Sans'] font-semibold text-[14.5px] text-[#0F2733] leading-snug">
-                  Cuff check, morning and night
+              <div className="min-w-0">
+                <span className="font-['Noto_Sans'] text-[13px] font-medium text-[#CFE7EE] block leading-snug">
+                  {summary.nextDose ? 'Next dose' : 'Today complete'}
                 </span>
+                <h2 className="font-['Figtree'] font-extrabold text-[22px] text-white leading-tight tabular-nums mt-0.5">
+                  {summary.nextDose
+                    ? `${summary.nextDose.name} · ${summary.nextDose.time}`
+                    : 'All doses taken'}
+                </h2>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowTimePicker(!showTimePicker)}
-              aria-label="Pick a time for clinic check"
-              className="w-full mt-4 min-h-[48px] h-12 rounded-full bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[15px] flex items-center justify-center hover:bg-[#084857] active:scale-[0.99] transition-all cursor-pointer"
-            >
-              {selectedTimeSlot ? `Booked: ${selectedTimeSlot}` : 'Pick a time'}
-            </button>
+            <p className="font-['Noto_Sans'] text-[13.5px] text-white/90 leading-snug mt-3.5">
+              {summary.nextDose
+                ? `Hana will check in at ${summary.nextDose.time}. Just tap Yes on her message.`
+                : 'All medicines logged for today. Hana will check in tomorrow at 08:00.'}
+            </p>
+          </section>
 
-            {showTimePicker && (
-              <div className="mt-3 p-3 rounded-[16px] bg-[#F1F6F8] border border-[#DCE5EA] space-y-2">
-                <span className="text-xs font-['Figtree'] font-bold text-[#475569] block">
-                  Available slots with Midwife Noura:
-                </span>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {timeSlots.map((slot) => (
+          {/* Card 2: Today dose schedule */}
+          <section
+            aria-label="Today's medicines"
+            className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs"
+          >
+            <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733] pb-3 border-b border-[#E5EEF2]">
+              Today
+            </h2>
+
+            <div className="divide-y divide-[#E5EEF2]">
+              {todayDoses.map((dose) => {
+                const isTaken = dose.status === 'taken';
+                return (
+                  <div
+                    key={dose.id}
+                    className="py-3.5 last:pb-1 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span className="font-['Figtree'] font-bold text-[14.5px] text-[#0F2733] tabular-nums shrink-0 w-11">
+                        {dose.time}
+                      </span>
+                      <span className="font-['Noto_Sans'] font-medium text-[15px] text-[#0F2733] truncate">
+                        {dose.name}
+                      </span>
+                    </div>
+
                     <button
                       type="button"
-                      key={slot}
-                      onClick={() => {
-                        setSelectedTimeSlot(slot);
-                        setShowTimePicker(false);
-                      }}
-                      className={`min-h-[44px] px-3 py-2 text-xs font-['Figtree'] font-semibold rounded-xl text-left transition-colors cursor-pointer ${
-                        selectedTimeSlot === slot
-                          ? 'bg-[#0B5F73] text-white'
-                          : 'bg-white hover:bg-[#DDEFF4] text-[#0F2733]'
+                      onClick={() => handleToggleDose(dose.id)}
+                      aria-pressed={isTaken}
+                      aria-label={
+                        isTaken
+                          ? `${dose.name} at ${dose.time} marked ${dose.badgeText}. Tap to mark due`
+                          : `Mark ${dose.name} at ${dose.time} as taken`
+                      }
+                      className={`min-h-[34px] px-3 py-1 rounded-full inline-flex items-center gap-1.5 font-['Figtree'] font-bold text-[12.5px] transition-all shrink-0 cursor-pointer active:scale-95 ${
+                        isTaken
+                          ? 'bg-[#DCFCE7] text-[#15803D] hover:bg-[#c8f7d8]'
+                          : 'bg-[#FBEBD0] text-[#8F5300] hover:bg-[#f7dfb8]'
                       }`}
                     >
-                      {slot}
+                      {isTaken ? (
+                        <Check className="w-3.5 h-3.5 stroke-[2.6]" />
+                      ) : (
+                        <Clock className="w-3.5 h-3.5 stroke-[2.2]" />
+                      )}
+                      <span>{dose.badgeText}</span>
                     </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Card 2: Medicine box */}
-          <div className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs">
-            <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733] leading-snug">
-              Medicine box
-            </h2>
-            <p className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-0.5">
-              From your prescription · Dr. Layla
-            </p>
-
-            {/* 7-Day Column Header */}
-            <div className="grid grid-cols-7 gap-1 text-center mt-3.5 mb-2">
-              {WEEK_DAYS.map((day) => (
-                <span
-                  key={day}
-                  className="font-['Figtree'] font-bold text-[11px] text-[#475569]"
-                >
-                  {day}
-                </span>
-              ))}
-            </div>
-
-            {/* Medicine Checklist Rows */}
-            <div className="space-y-3">
-              {medicines.map((med) => (
-                <div key={med.id}>
-                  <p className="font-['Figtree'] font-bold text-[14px] text-[#0F2733] leading-snug">
-                    {med.title}
-                  </p>
-                  {med.subtitle && (
-                    <p className="font-['Noto_Sans'] text-[12px] text-[#475569] leading-snug mt-0.5">
-                      {med.subtitle}
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-7 gap-1 mt-1.5">
-                    {med.days.map((checked, dayIdx) => (
-                      <button
-                        key={`${med.id}-${WEEK_DAYS[dayIdx]}`}
-                        type="button"
-                        onClick={() => toggleMedicineDay(med.id, dayIdx)}
-                        aria-label={`${med.title} ${WEEK_DAYS[dayIdx]}`}
-                        aria-pressed={checked}
-                        className="min-h-[38px] w-full flex items-center justify-center cursor-pointer group"
-                      >
-                        <span
-                          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                            checked
-                              ? 'bg-[#0B5F73] text-white'
-                              : 'bg-white border-[1.5px] border-[#CFE7EE] group-hover:border-[#0B5F73]'
-                          }`}
-                        >
-                          {checked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                        </span>
-                      </button>
-                    ))}
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Card 3: This week adherence summary */}
+          <section
+            aria-label="Weekly medicine adherence"
+            className="w-full bg-[#FBFDFE] rounded-[20px] p-4 border border-[#DCE5EA] shadow-2xs"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-['Figtree'] font-bold text-[17px] text-[#0F2733]">
+                This week
+              </h2>
+              <span className="font-['Figtree'] font-bold text-[14.5px] text-[#0F2733] tabular-nums">
+                {summary.takenThisWeek} of {summary.totalThisWeek} taken
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2.5 mt-3" role="list" aria-label="Daily doses this week">
+              {INITIAL_WEEK_DOTS.map((dot) => (
+                <span
+                  key={dot.day}
+                  role="listitem"
+                  title={`${dot.day}: ${dot.state}`}
+                  aria-label={`${dot.day}: ${dot.state}`}
+                  className={
+                    dot.state === 'taken'
+                      ? 'w-3.5 h-3.5 rounded-full bg-[#15803D] inline-block shrink-0'
+                      : 'w-3.5 h-3.5 rounded-full border-2 border-[#B3261E] bg-white inline-block shrink-0'
+                  }
+                />
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPrescriptionDrawer((prev) => !prev)}
-              className="w-full mt-4 min-h-[44px] h-11 rounded-full bg-[#0B5F73] text-white font-['Figtree'] font-bold text-[14px] flex items-center justify-center hover:bg-[#084857] active:scale-[0.99] transition-all cursor-pointer"
-            >
-              Add from prescription
-            </button>
-
-            {showPrescriptionDrawer && (
-              <div className="mt-3 p-3 rounded-[16px] bg-[#F1F6F8] border border-[#DCE5EA] space-y-2">
-                <span className="text-xs font-['Figtree'] font-bold text-[#475569] block">
-                  {availableExtras.length > 0
-                    ? 'Dr. Layla prescription items:'
-                    : 'All prescribed items added to your Medicine box.'}
-                </span>
-                {availableExtras.map((item) => (
-                  <button
-                    type="button"
-                    key={item.id}
-                    onClick={() => addPrescriptionMedicine(item)}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-white hover:bg-[#DDEFF4] text-left transition-colors cursor-pointer border border-[#DCE5EA]"
-                  >
-                    <span className="font-['Figtree'] font-bold text-[13px] text-[#0F2733] block">
-                      + {item.title}
-                    </span>
-                    {item.subtitle && (
-                      <span className="font-['Noto_Sans'] text-[11.5px] text-[#475569] block">
-                        {item.subtitle}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <p className="font-['Noto_Sans'] text-[12.5px] text-[#475569] leading-snug mt-3">
-              Hana can explain your medicines but never changes a dose.
+            <p className="font-['Noto_Sans'] text-[13px] text-[#475569] mt-2.5">
+              {summary.missedSummary}
             </p>
-          </div>
-
-          {/* Card 3: Midwife Noura speech bubble */}
-          <div className="w-full flex items-end gap-2.5 pt-0.5">
-            <div className="w-9 h-9 rounded-full bg-[#FBEBD0] text-[#6E4100] font-['Figtree'] font-bold text-[15px] flex items-center justify-center shrink-0">
-              N
-            </div>
-
-            <div className="flex-1 bg-[#FBFDFE] rounded-[20px] rounded-bl-[2px] px-4 py-3 border border-[#DCE5EA] shadow-2xs">
-              <span className="font-['Noto_Sans'] text-[12px] font-semibold text-[#475569] block">
-                Midwife Noura
-              </span>
-              <p className="font-['Noto_Sans'] font-medium text-[14px] text-[#0F2733] mt-0.5 leading-snug">
-                {selectedTimeSlot
-                  ? `Confirmed for ${selectedTimeSlot}.`
-                  : 'Pick a time for your clinic check.'}
-              </p>
-            </div>
-          </div>
+          </section>
         </>
       )}
     </div>

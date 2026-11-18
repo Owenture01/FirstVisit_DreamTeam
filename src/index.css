@@ -280,6 +280,47 @@ h1, h2, h3, h4, .font-heading {
   animation: faceid-scan-sweep 0.65s ease-in-out infinite;
 }
 
+/* Popping up Hana routine speech cloud & phone banner toast */
+@keyframes hana-cloud-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.84);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-banner-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.95);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-hana-cloud-pop {
+  transform-origin: bottom right;
+  animation: hana-cloud-pop 0.44s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-toast-banner-pop {
+  transform-origin: top center;
+  animation: toast-banner-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-heartbeat,
   .animate-ecg-line,
@@ -294,7 +335,9 @@ h1, h2, h3, h4, .font-heading {
   .animate-emergency-modal,
   .animate-bp-critical,
   .animate-lock-pop,
-  .animate-faceid-scan {
+  .animate-faceid-scan,
+  .animate-hana-cloud-pop,
+  .animate-toast-banner-pop {
     animation: none;
   }
 }

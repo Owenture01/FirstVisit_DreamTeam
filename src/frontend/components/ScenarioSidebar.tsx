@@ -35,10 +35,14 @@ interface ScenarioSidebarProps {
   scenario: AppScenario;
   isClinicPortalActive: boolean;
   isLockScreenOpen: boolean;
+  lockScreenMode?: 'morning' | 'routine';
+  isPhoneHomeOpen?: boolean;
   currentAuthScreen: OnboardingStep | 'authenticated';
   // Scenario actions
   onSelectAuthStep: (step: OnboardingStep) => void;
   onOpenLockScreen: () => void;
+  onOpenRoutineLockScreen: () => void;
+  onOpenPhoneHomeScreen: () => void;
   onOpenHanaView: (view: 'daily' | 'mental_health' | 'mood_question' | 'mood_result') => void;
   onSelectPatientTab: (tab: ScreenTab) => void;
   onSelectScenario: (scen: AppScenario) => void;
@@ -77,9 +81,13 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
   scenario,
   isClinicPortalActive,
   isLockScreenOpen,
+  lockScreenMode = 'morning',
+  isPhoneHomeOpen = false,
   currentAuthScreen,
   onSelectAuthStep,
   onOpenLockScreen,
+  onOpenRoutineLockScreen,
+  onOpenPhoneHomeScreen,
   onOpenHanaView,
   onSelectPatientTab,
   onSelectScenario,
@@ -379,7 +387,7 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
                   if (window.innerWidth < 1024) onToggle();
                 }}
                 className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
-                  isLockScreenOpen
+                  isLockScreenOpen && lockScreenMode === 'morning'
                     ? 'bg-[#0B5F73] text-white shadow-xs'
                     : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
@@ -449,7 +457,7 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
                 }`}
               >
                 <span>12 · Care</span>
-                <span className="text-[9px] opacity-70">Plan & Vitamins</span>
+                <span className="text-[9px] opacity-70">Medicines</span>
               </button>
 
               <button
@@ -557,6 +565,45 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
                 className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 18 · Mood check · result
+              </button>
+              <button
+                onClick={() => {
+                  onSelectScenario('home_week31');
+                  onSelectPatientTab('today');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <span>18a · Today · Hana cloud</span>
+                <span className="text-[9px] opacity-70">3s loop</span>
+              </button>
+              <button
+                onClick={() => {
+                  onOpenRoutineLockScreen();
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  isLockScreenOpen && lockScreenMode === 'routine'
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>18b · Lock screen · toast</span>
+                <span className="text-[9px] opacity-70">Routine</span>
+              </button>
+              <button
+                onClick={() => {
+                  onOpenPhoneHomeScreen();
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  isPhoneHomeOpen
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>18c · Phone home · toast</span>
+                <span className="text-[9px] opacity-70">App grid</span>
               </button>
             </div>
           </div>
