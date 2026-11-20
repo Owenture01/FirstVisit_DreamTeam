@@ -8,8 +8,13 @@ import { HanaCompanion } from '../components/HanaCompanion';
 import { CriticalAlertBanner } from '../components/CriticalAlertBanner';
 import { FirstScanCard } from '../components/FirstScanCard';
 import { MidwifeTriageBanner } from '../components/MidwifeTriageBanner';
+import { ClinicBookedAppointmentCard } from '../components/ClinicBookedAppointmentCard';
+import { BandDisconnectedView } from '../components/BandDisconnectedView';
+import { OfflineSafetyView } from '../components/OfflineSafetyView';
+import { PostpartumDay5View } from '../components/PostpartumDay5View';
 import { AppScenario } from '../types';
 import { DEFAULT_DUE_DATE } from '../utils/gestationalAge';
+import { BookedClinicAppointment } from '../utils/bookedAppointment';
 
 interface HomeScreenProps {
   scenario: AppScenario;
@@ -19,8 +24,11 @@ interface HomeScreenProps {
   dueDate?: string;
   isMidwifeChecking?: boolean;
   isVideoBooked?: boolean;
+  bookedAppointment?: BookedClinicAppointment | null;
   isAlarmMuted?: boolean;
   onToggleAlarmMute?: () => void;
+  onToggleConfirmAppointment?: () => void;
+  onRescheduleAppointment?: () => void;
   onOpenHelp: () => void;
   onOpenHana: () => void;
   onOpenProfile: () => void;
@@ -29,6 +37,9 @@ interface HomeScreenProps {
   onOpenWhyWeFlagged?: () => void;
   onOpenWhatToDo?: () => void;
   onMarkDoseTaken?: (doseId: string) => void;
+  onNavigateToCare?: () => void;
+  onReconnectBand?: () => void;
+  onOpenMoodCheck?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -39,8 +50,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   dueDate = DEFAULT_DUE_DATE,
   isMidwifeChecking = false,
   isVideoBooked = false,
+  bookedAppointment = null,
   isAlarmMuted = false,
   onToggleAlarmMute,
+  onToggleConfirmAppointment = () => {},
+  onRescheduleAppointment = () => {},
   onOpenHelp,
   onOpenHana,
   onOpenProfile,
@@ -49,9 +63,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenWhyWeFlagged = () => {},
   onOpenWhatToDo = () => {},
   onMarkDoseTaken,
+  onNavigateToCare,
+  onReconnectBand,
+  onOpenMoodCheck,
 }) => {
   const isCritical = scenario === 'critical_alert';
-  const isEarly = !isCritical && (scenario === 'early_pregnancy' || gestationalWeek < 16);
+  const isBandDisconnected = scenario === 'band_disconnected';
+  const isOffline = scenario === 'offline';
+  const isPostpartumDay5 = scenario === 'postpartum_day5';
+  const isSpecialScenario = isCritical || isBandDisconnected || isOffline || isPostpartumDay5;
+  const isEarly = !isSpecialScenario && (scenario === 'early_pregnancy' || gestationalWeek < 16);
 
   return (
     <div className="w-full flex-1 flex flex-col space-y-3.5 pb-4">
@@ -59,11 +80,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <Header
         gestationalWeek={gestationalWeek}
         gestationalDay={gestationalDay}
+        titleOverride={isPostpartumDay5 ? 'Day 5 after birth' : undefined}
+        subtitleOverride={isPostpartumDay5 ? 'Postpartum check' : undefined}
         motherInitials="M"
         onOpenHelp={onOpenHelp}
         onOpenHana={onOpenHana}
         onOpenProfile={onOpenProfile}
       />
+
+      {/* Screen 27: Band Disconnected Safety Net View */}
+      {isBandDisconnected && (
+        <BandDisconnectedView
+          onOpenHelp={onOpenHelp}
+          onReconnectBand={onReconnectBand}
+        />
+      )}
+
+      {/* Screen 28: Offline Safety Net View */}
+      {isOffline && (
+        <OfflineSafetyView
+          onOpenHelp={onOpenHelp}
+          onNavigateToCare={onNavigateToCare}
+        />
+      )}
+
+      {/* Screen 29: Postpartum Day 5 View */}
+      {isPostpartumDay5 && (
+        <PostpartumDay5View
+          onOpenHelp={onOpenHelp}
+          onOpenMoodCheck={onOpenMoodCheck}
+        />
+      )}
 
       {/* Screen 2: Critical Alert View */}
       {isCritical && (
@@ -168,8 +215,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </>
       )}
 
+      {/* Booked Clinic Check Home View (immediately shown once date & time are picked from Scenario 20) */}
+      {!isSpecialScenario && !isEarly && bookedAppointment && (
+        <>
+          <ClinicBookedAppointmentCard
+            appointment={bookedAppointment}
+            onToggleConfirm={onToggleConfirmAppointment}
+            onPickAnotherTime={onRescheduleAppointment}
+          />
+
+          <BabyHeartbeatCard
+            bpm={138}
+            compact={true}
+            statusText="Normal"
+            inlineCompactSubtitle="last recording 07:30"
+            onCardClick={onOpenHana}
+          />
+
+          <MotherVitalsCard
+            heartRate={88}
+            heartRateStatus="normal"
+            bloodPressure="144/94"
+            bloodPressureStatus="review"
+            timeAgo="Cuff · 15:02"
+            hideNextStep={true}
+          />
+        </>
+      )}
+
       {/* Screen 1 / Screens 19-23: Default Home & Flag-to-Care View */}
-      {!isCritical && !isEarly && (
+      {!isSpecialScenario && !isEarly && !bookedAppointment && (
         <>
           {/* Progressive Baby Size Companion Card */}
           <BabyCompanionCard

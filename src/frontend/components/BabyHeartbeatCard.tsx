@@ -7,6 +7,7 @@ interface BabyHeartbeatCardProps {
   isLive?: boolean;
   statusText?: string;
   compactSubtitle?: string;
+  inlineCompactSubtitle?: string;
   isEarlyPregnancy?: boolean;
   compact?: boolean;
   onCardClick?: () => void;
@@ -17,6 +18,7 @@ export const BabyHeartbeatCard: React.FC<BabyHeartbeatCardProps> = ({
   isLive = true,
   statusText = 'Normal',
   compactSubtitle,
+  inlineCompactSubtitle,
   isEarlyPregnancy = false,
   compact = false,
   onCardClick,
@@ -58,26 +60,34 @@ export const BabyHeartbeatCard: React.FC<BabyHeartbeatCardProps> = ({
     );
   }
 
-  // Screen 2: Compact alert version
+  // Screen 2 & Booked Appointment Home: Compact version
   if (compact) {
     return (
       <div 
         onClick={onCardClick}
-        className="w-full bg-[#0B5F73] text-white rounded-[20px] p-3.5 px-4 flex items-center justify-between shadow-xs cursor-pointer hover:bg-[#094e5e] transition-all"
+        className="w-full bg-[#0B5F73] text-white rounded-[24px] py-3.5 px-4 flex items-center justify-between gap-2 shadow-xs cursor-pointer hover:bg-[#094e5e] transition-all text-left"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center text-[#F2A541]">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-[#F2A541] shrink-0">
             <Heart className="w-5 h-5 fill-[#F2A541]" strokeWidth={0} />
           </div>
-          <div>
-            <span className="text-xs text-[#DDEFF4] block font-medium">Baby's heartbeat</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-['Figtree'] font-extrabold text-xl tabular-nums leading-none">{bpm}</span>
-              <span className="text-xs text-white/80 font-normal">
-                {compactSubtitle ? 'bpm' : `bpm · ${statusText.toLowerCase()}`}
+          <div className="min-w-0">
+            <span className="font-['Figtree'] text-[13px] text-[#DDEFF4] block font-semibold leading-tight">
+              Baby&apos;s heartbeat
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+              <span className="font-['Figtree'] font-extrabold text-[24px] tabular-nums leading-none">
+                {bpm}
+              </span>
+              <span className="font-['Noto_Sans'] text-[12.5px] text-white/85 font-normal">
+                {inlineCompactSubtitle
+                  ? `bpm · ${inlineCompactSubtitle}`
+                  : compactSubtitle
+                    ? 'bpm'
+                    : `bpm · ${statusText.toLowerCase()}`}
               </span>
             </div>
-            {compactSubtitle && (
+            {compactSubtitle && !inlineCompactSubtitle && (
               <span className="text-[11px] text-[#DDEFF4]/80 block mt-1">
                 {compactSubtitle}
               </span>
@@ -86,8 +96,9 @@ export const BabyHeartbeatCard: React.FC<BabyHeartbeatCardProps> = ({
         </div>
 
         <button
+          type="button"
           onClick={handleToggleAudio}
-          className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 cursor-pointer"
           aria-label={isPlayingAudio ? 'Mute fetal audio' : 'Play fetal heartbeat audio'}
           title="Simulate fetal Doppler sound"
         >

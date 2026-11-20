@@ -8,9 +8,10 @@ interface MotherVitalsCardProps {
   bloodPressure: string;
   bloodPressureStatus?: VitalStatus;
   timeAgo?: string;
-  nextStepTitle: string;
-  nextStepAction: string;
+  nextStepTitle?: string;
+  nextStepAction?: string;
   nextStepType?: 'remind' | 'safe' | 'done' | 'custom';
+  hideNextStep?: boolean;
   showExtendedMetrics?: boolean; // For Screen 3: sleep and stress
   sleepHours?: number;
   stressLevel?: string;
@@ -27,6 +28,7 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
   nextStepTitle = 'Cuff check at 20:00',
   nextStepAction = 'Remind me',
   nextStepType = 'remind',
+  hideNextStep = false,
   showExtendedMetrics = false,
   sleepHours = 7,
   stressLevel = 'Low',
@@ -41,6 +43,7 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
   };
 
   const isUrgentBP = bloodPressureStatus === 'urgent';
+  const isHighBP = bloodPressureStatus === 'review';
   const isHighHR = heartRateStatus === 'review' || heartRateStatus === 'urgent';
 
   return (
@@ -76,7 +79,7 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
               </span>
             )}
           </div>
-          <div className="flex items-baseline gap-1 my-1">
+          <div className="flex items-baseline gap-1 my-1.5">
             <span className="font-['Figtree'] text-[28px] font-[800] text-[#0F2733] tabular-nums leading-none">
               {heartRate}
             </span>
@@ -87,12 +90,12 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
 
           {/* Status Badge */}
           {isHighHR ? (
-            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F2A541] text-[#6E4100] text-[11px] font-bold">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F2A541] text-[#3D2A10] text-[11.5px] font-bold">
               <span>!</span>
               <span>High</span>
             </div>
           ) : (
-            <div className="inline-flex items-center gap-1 text-[#15803D] text-[12px] font-semibold">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#DCFCE7] text-[#15803D] text-[12px] font-bold">
               <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Normal</span>
             </div>
@@ -105,7 +108,9 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
           className={`p-3.5 rounded-[18px] transition-all cursor-pointer ${
             isUrgentBP 
               ? 'animate-bp-critical border-2 border-[#B3261E]' 
-              : 'bg-[#F1F6F8] hover:bg-[#e7eef1]'
+              : isHighBP
+                ? 'bg-[#FBEBD0] hover:bg-[#f7e2be]'
+                : 'bg-[#F1F6F8] hover:bg-[#e7eef1]'
           }`}
         >
           <div className="flex items-center justify-between gap-1">
@@ -118,7 +123,7 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
               </span>
             )}
           </div>
-          <div className="flex items-baseline gap-1 my-1">
+          <div className="flex items-baseline gap-1 my-1.5">
             <span className={`font-['Figtree'] text-[24px] sm:text-[26px] font-[800] tabular-nums leading-none ${
               isUrgentBP ? 'text-[#B3261E]' : 'text-[#0F2733]'
             }`}>
@@ -132,8 +137,13 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
               <span>!</span>
               <span>Very high</span>
             </div>
+          ) : isHighBP ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F2A541] text-[#3D2A10] text-[12px] font-bold">
+              <span>!</span>
+              <span>High</span>
+            </div>
           ) : (
-            <div className="inline-flex items-center gap-1 text-[#15803D] text-[12px] font-semibold">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#DCFCE7] text-[#15803D] text-[12px] font-bold">
               <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Normal</span>
             </div>
@@ -186,35 +196,37 @@ export const MotherVitalsCard: React.FC<MotherVitalsCardProps> = ({
       </div>
 
       {/* NEXT STEP Section */}
-      <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="font-['Noto_Sans'] text-[11px] font-bold uppercase tracking-wider text-[#475569] block">
-            NEXT STEP
-          </span>
-          <p className="font-['Noto_Sans'] text-[14px] font-semibold text-[#0F2733] truncate mt-0.5">
-            {nextStepTitle}
-          </p>
-        </div>
+      {!hideNextStep && nextStepTitle && nextStepAction && (
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="font-['Noto_Sans'] text-[11px] font-bold uppercase tracking-wider text-[#475569] block">
+              NEXT STEP
+            </span>
+            <p className="font-['Noto_Sans'] text-[14px] font-semibold text-[#0F2733] truncate mt-0.5">
+              {nextStepTitle}
+            </p>
+          </div>
 
-        <button
-          onClick={handleAction}
-          aria-label={nextStepAction}
-          className={`min-h-[44px] h-11 px-5 rounded-full font-['Figtree'] font-bold text-[14px] shrink-0 flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs ${
-            actionDone
-              ? 'bg-[#15803D] text-white hover:bg-[#126b33]'
-              : 'bg-[#0B5F73] text-white hover:bg-[#084857]'
-          }`}
-        >
-          {actionDone ? (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{nextStepType === 'safe' ? 'Acknowledged' : 'Scheduled'}</span>
-            </>
-          ) : (
-            <span>{nextStepAction}</span>
-          )}
-        </button>
-      </div>
+          <button
+            onClick={handleAction}
+            aria-label={nextStepAction}
+            className={`min-h-[44px] h-11 px-5 rounded-full font-['Figtree'] font-bold text-[14px] shrink-0 flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs ${
+              actionDone
+                ? 'bg-[#15803D] text-white hover:bg-[#126b33]'
+                : 'bg-[#0B5F73] text-white hover:bg-[#084857]'
+            }`}
+          >
+            {actionDone ? (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{nextStepType === 'safe' ? 'Acknowledged' : 'Scheduled'}</span>
+              </>
+            ) : (
+              <span>{nextStepAction}</span>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

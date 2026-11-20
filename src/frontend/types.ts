@@ -4,7 +4,13 @@
 
 export type ScreenTab = 'today' | 'track' | 'journey' | 'care' | 'family';
 
-export type AppScenario = 'home_week31' | 'critical_alert' | 'early_pregnancy';
+export type AppScenario =
+  | 'home_week31'
+  | 'critical_alert'
+  | 'early_pregnancy'
+  | 'band_disconnected'
+  | 'offline'
+  | 'postpartum_day5';
 
 export type VitalStatus = 'normal' | 'review' | 'urgent' | 'good' | 'calm' | 'missed';
 

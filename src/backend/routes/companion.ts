@@ -1,19 +1,19 @@
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { ThinkingLevel } from '@google/genai';
-import { getGeminiClient } from '../services/geminiClient';
+import { getGeminiClient } from '../services/geminiClient.ts';
 import {
   buildHanaSystemInstruction,
   detectElevatedBPWithoutSevereSymptoms,
   detectRedFlagEmergency,
   EMERGENCY_STANDARD_REPLY,
-  LoggedMedicationContext,
+  type LoggedMedicationContext,
   parseHanaResponse,
   TRIGGER_HELP_TOKEN,
-} from '../utils/hanaSafety';
+} from '../utils/hanaSafety.ts';
 import {
   classifyGeminiError,
   executeCompanionWithFallback,
-} from '../utils/geminiRetry';
+} from '../utils/geminiRetry.ts';
 
 export const companionRouter = Router();
 

@@ -11,10 +11,11 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { ClinicPatient } from './types';
+import { AppScenario } from '../frontend/types';
 
 interface ClinicPortalViewProps {
   onBackToPatientApp: () => void;
-  scenario: 'home_week31' | 'critical_alert' | 'early_pregnancy';
+  scenario: AppScenario;
 }
 
 export const ClinicPortalView: React.FC<ClinicPortalViewProps> = ({ 

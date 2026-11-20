@@ -1,8 +1,7 @@
 import 'dotenv/config';
 import path from 'node:path';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
-import { backendApp } from './src/backend/index';
+import { backendApp } from './src/backend/index.ts';
 
 async function startServer() {
   const app = express();
@@ -13,6 +12,7 @@ async function startServer() {
   app.use(backendApp);
 
   if (!isProduction) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
         middlewareMode: true,

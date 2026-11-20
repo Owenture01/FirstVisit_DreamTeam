@@ -23,6 +23,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { AppScenario, ScreenTab } from '../types';
+import { CareScreenMode } from '../utils/escalationScenarios';
 import { OnboardingStep } from '../screens/OnboardingFlow';
 import { BabyCompanionSticker } from './BabyCompanionSticker';
 import { getBabySizeStage } from '../data/babySizeStickers';
@@ -33,6 +34,7 @@ interface ScenarioSidebarProps {
   // Active states
   currentTab: ScreenTab;
   scenario: AppScenario;
+  careScreenMode?: CareScreenMode;
   isClinicPortalActive: boolean;
   isLockScreenOpen: boolean;
   lockScreenMode?: 'morning' | 'routine';
@@ -56,6 +58,9 @@ interface ScenarioSidebarProps {
   onOpenCuffResult: () => void;
   onOpenVisitDone: () => void;
   onOpenMissedCheck: () => void;
+  onOpenEscalatedCuff: () => void;
+  onOpenClinicianPhoneAlert: () => void;
+  onOpenPostpartumWeek6: () => void;
   // Utilities
   isPlayingAudio: boolean;
   onToggleAudio: () => void;
@@ -79,6 +84,7 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
   onToggle,
   currentTab,
   scenario,
+  careScreenMode = 'medicines',
   isClinicPortalActive,
   isLockScreenOpen,
   lockScreenMode = 'morning',
@@ -100,6 +106,9 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
   onOpenCuffResult,
   onOpenVisitDone,
   onOpenMissedCheck,
+  onOpenEscalatedCuff,
+  onOpenClinicianPhoneAlert,
+  onOpenPostpartumWeek6,
   isPlayingAudio,
   onToggleAudio,
   isDarkMode,
@@ -652,7 +661,7 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                22 · Cuff rest timer (3:00)
+                22 · Cuff rest timer (5:00)
               </button>
 
               <button
@@ -662,7 +671,7 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                23 · Cuff check: 138/88
+                23 · Cuff check: 144/94
               </button>
 
               <button
@@ -683,6 +692,107 @@ export const ScenarioSidebar: React.FC<ScenarioSidebarProps> = ({
                 className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#F2A541] hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
               >
                 25 · Missed check (Reschedule)
+              </button>
+
+              <button
+                onClick={() => {
+                  onOpenEscalatedCuff();
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#B3261E] hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              >
+                26 · No reply · escalated
+              </button>
+
+              <button
+                onClick={() => {
+                  onOpenClinicianPhoneAlert();
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] text-left text-[#B3261E] hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center justify-between gap-1.5"
+              >
+                <span>26a · Clinician phone · urgent alert</span>
+                <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-100 text-[#15803D] shrink-0">
+                  New
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Group 3B: Safety Net (Screens 27-28) */}
+          <div>
+            <span className="font-['Figtree'] font-extrabold uppercase tracking-wider text-[10px] text-[#0B5F73] dark:text-[#6CCBE0] px-1 mb-1.5 block">
+              27-28 · Safety Net
+            </span>
+
+            <div className="space-y-1">
+              <button
+                onClick={() => {
+                  onSelectScenario('band_disconnected');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  currentAuthScreen === 'authenticated' && !isClinicPortalActive && currentTab === 'today' && scenario === 'band_disconnected'
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>27 · Band disconnected</span>
+                <span className="text-[9px] opacity-70">Try this</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onSelectScenario('offline');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  currentAuthScreen === 'authenticated' && !isClinicPortalActive && currentTab === 'today' && scenario === 'offline'
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>28 · Offline</span>
+                <span className="text-[9px] opacity-70">Saved queue</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Group 3C: Postpartum (Screens 29-30) */}
+          <div>
+            <span className="font-['Figtree'] font-extrabold uppercase tracking-wider text-[10px] text-[#0B5F73] dark:text-[#6CCBE0] px-1 mb-1.5 block">
+              29-30 · Postpartum
+            </span>
+
+            <div className="space-y-1">
+              <button
+                onClick={() => {
+                  onSelectScenario('postpartum_day5');
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  currentAuthScreen === 'authenticated' && !isClinicPortalActive && currentTab === 'today' && scenario === 'postpartum_day5'
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>29 · Postpartum day 5</span>
+                <span className="text-[9px] opacity-70">After birth</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onOpenPostpartumWeek6();
+                  if (window.innerWidth < 1024) onToggle();
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-lg font-['Figtree'] font-bold text-[11px] flex items-center justify-between transition-colors ${
+                  currentAuthScreen === 'authenticated' && !isClinicPortalActive && currentTab === 'care' && careScreenMode === 'postpartum_week6'
+                    ? 'bg-[#0B5F73] text-white shadow-xs'
+                    : 'text-[#475569] dark:text-[#A9B8C0] hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>30 · Postpartum week 6 · handover</span>
+                <span className="text-[9px] opacity-70">Day 42</span>
               </button>
             </div>
           </div>

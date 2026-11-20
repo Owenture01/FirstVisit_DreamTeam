@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Clock, Pill, Calendar, Check } from 'lucide-react';
 import { Header } from '../components/Header';
+import { EscalatedCuffCareView } from '../components/EscalatedCuffCareView';
+import { PostpartumWeek6View } from '../components/PostpartumWeek6View';
 import {
   INITIAL_TODAY_DOSES,
   INITIAL_WEEK_DOTS,
@@ -8,6 +10,7 @@ import {
   computeCareDoseSummary,
   toggleDoseStatus,
 } from '../utils/careMedicines';
+import { CareScreenMode } from '../utils/escalationScenarios';
 
 interface CareScreenProps {
   gestationalWeek?: number;
@@ -16,6 +19,7 @@ interface CareScreenProps {
   onOpenHana?: () => void;
   onOpenProfile?: () => void;
   isVisitDone?: boolean;
+  careMode?: CareScreenMode;
   todayDoses?: TodayDoseItem[];
   onToggleDose?: (doseId: string) => void;
 }
@@ -27,6 +31,7 @@ export const CareScreen: React.FC<CareScreenProps> = ({
   onOpenHana = () => {},
   onOpenProfile = () => {},
   isVisitDone: initialVisitDone = false,
+  careMode: controlledCareMode,
   todayDoses: controlledDoses,
   onToggleDose: controlledToggleDose,
 }) => {
@@ -37,6 +42,9 @@ export const CareScreen: React.FC<CareScreenProps> = ({
   React.useEffect(() => {
     setIsVisitDone(initialVisitDone);
   }, [initialVisitDone]);
+
+  const effectiveMode: CareScreenMode =
+    controlledCareMode ?? (isVisitDone ? 'visit_done' : 'medicines');
 
   const triageSteps = [
     { label: 'Flagged', done: true },
@@ -62,31 +70,40 @@ export const CareScreen: React.FC<CareScreenProps> = ({
       <Header
         gestationalWeek={gestationalWeek}
         gestationalDay={gestationalDay}
+        titleOverride={effectiveMode === 'postpartum_week6' ? 'Day 42 after birth' : undefined}
+        subtitleOverride={effectiveMode === 'postpartum_week6' ? 'Postpartum check' : undefined}
         motherInitials="M"
         onOpenHelp={onOpenHelp}
         onOpenHana={onOpenHana}
         onOpenProfile={onOpenProfile}
       />
 
-      {/* Screen Title */}
-      <div className="px-1 pt-0.5 flex items-center justify-between gap-2">
-        <h1 className="font-['Figtree'] font-extrabold text-[26px] text-[#0F2733] leading-tight">
-          Care
-        </h1>
+      {/* Screen 26 · No reply · escalated */}
+      {effectiveMode === 'escalated' ? (
+        <EscalatedCuffCareView />
+      ) : effectiveMode === 'postpartum_week6' ? (
+        <PostpartumWeek6View />
+      ) : (
+        <>
+          {/* Screen Title */}
+          <div className="px-1 pt-0.5 flex items-center justify-between gap-2">
+            <h1 className="font-['Figtree'] font-extrabold text-[26px] text-[#0F2733] leading-tight">
+              Care
+            </h1>
 
-        {isVisitDone && (
-          <button
-            type="button"
-            onClick={() => setIsVisitDone(false)}
-            className="min-h-[36px] text-[12px] font-['Figtree'] font-bold px-3 py-1 rounded-full border bg-[#FBFDFE] text-[#0B5F73] border-[#DCE5EA] hover:bg-[#DDEFF4]/50 transition-colors cursor-pointer"
-          >
-            Back to medicines
-          </button>
-        )}
-      </div>
+            {effectiveMode === 'visit_done' && !controlledCareMode && (
+              <button
+                type="button"
+                onClick={() => setIsVisitDone(false)}
+                className="min-h-[36px] text-[12px] font-['Figtree'] font-bold px-3 py-1 rounded-full border bg-[#FBFDFE] text-[#0B5F73] border-[#DCE5EA] hover:bg-[#DDEFF4]/50 transition-colors cursor-pointer"
+              >
+                Back to medicines
+              </button>
+            )}
+          </div>
 
-      {/* Screen 24 · Visit Done View */}
-      {isVisitDone ? (
+          {/* Screen 24 · Visit Done View */}
+          {effectiveMode === 'visit_done' ? (
         <>
           {/* Card 1: Video check done */}
           <div className="w-full bg-[#FBFDFE] rounded-[20px] p-5 border border-[#DCE5EA] shadow-2xs">
@@ -312,6 +329,8 @@ export const CareScreen: React.FC<CareScreenProps> = ({
               {summary.missedSummary}
             </p>
           </section>
+        </>
+      )}
         </>
       )}
     </div>

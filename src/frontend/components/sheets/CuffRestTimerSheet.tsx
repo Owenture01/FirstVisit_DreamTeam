@@ -1,86 +1,193 @@
-import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import React from 'react';
+import { ChevronLeft } from 'lucide-react';
+import {
+  CUFF_PREP_STEPS,
+  CUFF_REST_TOTAL_SECONDS,
+  formatCuffCountdown,
+  getCuffActionButtonLabel,
+  getRingDashOffset,
+} from '../../utils/cuffRestTimer';
 
 interface CuffRestTimerSheetProps {
   isOpen: boolean;
-  onClose: () => void;
+  secondsRemaining: number;
+  totalSeconds?: number;
+  firstReadingValue?: string;
+  firstReadingTime?: string;
+  onMinimize: () => void;
   onCompleteRest: () => void;
+  onOpenHelp: () => void;
 }
 
 export const CuffRestTimerSheet: React.FC<CuffRestTimerSheetProps> = ({
   isOpen,
-  onClose,
+  secondsRemaining,
+  totalSeconds = CUFF_REST_TOTAL_SECONDS,
+  firstReadingValue = '146/94',
+  firstReadingTime = '19:52',
+  onMinimize,
   onCompleteRest,
+  onOpenHelp,
 }) => {
-  const [secondsRemaining, setSecondsRemaining] = useState(180); // 3:00
-
-  useEffect(() => {
-    if (!isOpen) {
-      setSecondsRemaining(180);
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setSecondsRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          onCompleteRest();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isOpen, onCompleteRest]);
-
   if (!isOpen) return null;
 
-  const minutes = Math.floor(secondsRemaining / 60);
-  const seconds = secondsRemaining % 60;
-  const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  const ringSize = 86;
+  const strokeWidth = 6.5;
+  const radius = (ringSize - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = getRingDashOffset(circumference, secondsRemaining, totalSeconds);
+  const timeFormatted = formatCuffCountdown(secondsRemaining);
+  const actionLabel = getCuffActionButtonLabel(secondsRemaining);
+  const isReady = secondsRemaining <= 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-[430px] bg-white rounded-t-[28px] shadow-2xl border border-slate-200 p-6 text-center flex flex-col items-center justify-between min-h-[460px]">
-        {/* Grab bar */}
-        <div className="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mb-2 shrink-0" />
-
-        {/* Header with Title & Close button */}
-        <div className="w-full flex items-center justify-between mb-4">
-          <div className="w-6" /> {/* Spacer */}
-          <h2 className="font-['Figtree'] font-extrabold text-[20px] text-[#0F2733]">
-            Rest, then measure
-          </h2>
-          <button 
-            onClick={onClose} 
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-[#475569]"
+    <div
+      data-testid="cuff-rest-timer-screen"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cuff-rest-timer-heading"
+      className="absolute inset-0 z-40 bg-[#F1F6F8] dark:bg-[#0E1A20] flex flex-col justify-between px-5 pt-4 pb-6 overflow-y-auto animate-cuff-sheet-expand"
+    >
+      {/* Top Content Stack */}
+      <div className="flex flex-col">
+        {/* Top-left Exit / Minimize Chevron */}
+        <div className="flex items-center mb-3 -ml-2">
+          <button
+            type="button"
+            onClick={onMinimize}
+            aria-label="Minimize cuff rest timer"
+            title="Minimize to Home widget"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#0F2733] dark:text-[#F1F6F8] hover:bg-slate-200/70 dark:hover:bg-slate-800 active:scale-95 transition-all cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
           </button>
         </div>
 
-        {/* Breathing Circle with Real Countdown Timer */}
-        <div className="my-6 relative flex flex-col items-center justify-center">
-          {/* Subtle animated pulsating halo */}
-          <div className="w-48 h-48 rounded-full bg-[#DDEFF4]/60 flex items-center justify-center animate-pulse">
-            <div className="w-40 h-40 rounded-full bg-[#DDEFF4] flex flex-col items-center justify-center p-4 shadow-xs">
-              <span className="font-['Figtree'] font-black text-[38px] text-[#0B5F73] tabular-nums leading-none">
+        {/* Heading & Subtitle */}
+        <h1
+          id="cuff-rest-timer-heading"
+          className="font-['Figtree'] font-extrabold text-[26px] leading-[1.18] tracking-tight text-[#0F2733] dark:text-[#F1F6F8]"
+        >
+          Let&apos;s check that again
+        </h1>
+        <p className="font-['Noto_Sans'] text-[14.5px] leading-[1.45] text-[#475569] dark:text-[#A9B8C0] mt-2">
+          One high reading is often a blip. Rest, then measure once more.
+        </p>
+
+        {/* First Reading Card */}
+        <div className="mt-5 bg-[#FBFDFE] dark:bg-[#15252D] border border-[#DCE5EA] dark:border-slate-700/80 rounded-[20px] px-4 py-3.5 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-['Noto_Sans'] text-[13px] text-[#475569] dark:text-[#A9B8C0]">
+              First reading · {firstReadingTime}
+            </p>
+            <p className="font-['Figtree'] font-extrabold text-[28px] leading-[1.15] tracking-tight text-[#0F2733] dark:text-[#F1F6F8] tabular-nums mt-0.5">
+              {firstReadingValue}
+            </p>
+          </div>
+
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FBEBD0] dark:bg-amber-950/70 text-[#6E4100] dark:text-amber-300 font-['Figtree'] font-bold text-[12.5px] whitespace-nowrap shrink-0">
+            <span aria-hidden="true" className="font-extrabold">
+              !
+            </span>
+            Above 140/90
+          </span>
+        </div>
+
+        {/* Circular Countdown Ring & Rest Instruction Row */}
+        <div className="mt-5 flex items-center gap-4 px-0.5">
+          <div className="relative w-[86px] h-[86px] shrink-0 flex items-center justify-center">
+            <svg
+              width={ringSize}
+              height={ringSize}
+              viewBox={`0 0 ${ringSize} ${ringSize}`}
+              className="absolute inset-0 -rotate-90"
+              aria-hidden="true"
+            >
+              <circle
+                cx={ringSize / 2}
+                cy={ringSize / 2}
+                r={radius}
+                fill="none"
+                stroke="#DCE5EA"
+                strokeWidth={strokeWidth}
+                className="dark:stroke-slate-700"
+              />
+              <circle
+                cx={ringSize / 2}
+                cy={ringSize / 2}
+                r={radius}
+                fill="none"
+                stroke={isReady ? '#15803D' : '#0B5F73'}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={isReady ? 0 : dashOffset}
+                className="transition-[stroke-dashoffset] duration-500 ease-linear"
+              />
+            </svg>
+
+            <div className="relative z-10 flex flex-col items-center justify-center leading-none">
+              <span
+                data-testid="cuff-rest-countdown"
+                className="font-['Figtree'] font-extrabold text-[23px] text-[#0F2733] dark:text-[#F1F6F8] tabular-nums tracking-tight"
+              >
                 {timeFormatted}
               </span>
-              <span className="font-['Noto_Sans'] text-[12px] text-[#0B5F73] font-medium mt-1.5">
-                Breathe with the circle
+              <span className="font-['Noto_Sans'] text-[12px] text-[#475569] dark:text-[#A9B8C0] mt-0.5">
+                {isReady ? 'done' : 'rest'}
               </span>
             </div>
           </div>
+
+          <p className="font-['Noto_Sans'] text-[14.5px] leading-[1.42] text-[#0F2733] dark:text-[#F1F6F8]">
+            Rest for 5 minutes. We&apos;ll tell you when to measure.
+          </p>
         </div>
 
-        {/* Skip rest action button */}
+        {/* 4-Step Preparation Checklist Card */}
+        <div className="mt-5 bg-[#FBFDFE] dark:bg-[#15252D] border border-[#DCE5EA] dark:border-slate-700/80 rounded-[20px] px-4 py-4 space-y-3.5">
+          {CUFF_PREP_STEPS.map((step) => (
+            <div key={step.number} className="flex items-center gap-3.5">
+              <span className="w-7 h-7 rounded-full bg-[#DDEFF4] dark:bg-[#0B5F73]/30 text-[#0B5F73] dark:text-[#6CCBE0] font-['Figtree'] font-extrabold text-[13px] flex items-center justify-center shrink-0">
+                {step.number}
+              </span>
+              <span className="font-['Noto_Sans'] text-[14px] leading-[1.35] text-[#0F2733] dark:text-[#F1F6F8]">
+                {step.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Urgent Warning Prompt */}
         <button
-          onClick={onCompleteRest}
-          className="text-[15px] font-['Figtree'] font-bold text-[#0F2733] hover:text-[#0B5F73] py-2 px-6 rounded-full hover:bg-slate-100 transition-colors"
+          type="button"
+          onClick={onOpenHelp}
+          className="mt-5 flex items-start gap-2.5 px-1 text-left group cursor-pointer focus:outline-none focus-visible:underline"
         >
-          Skip rest
+          <span
+            aria-hidden="true"
+            className="text-[#B3261E] dark:text-red-400 font-['Figtree'] font-extrabold text-[15px] leading-[1.35] shrink-0 pt-0.5"
+          >
+            !
+          </span>
+          <span className="max-w-[272px] font-['Figtree'] font-bold text-[13.5px] leading-[1.4] text-[#B3261E] dark:text-red-400 group-hover:underline">
+            Bad headache, blurry vision or belly pain? Press Help now.
+          </span>
+        </button>
+      </div>
+
+      {/* Bottom Full-Width Pill Button */}
+      <div className="pt-6">
+        <button
+          type="button"
+          onClick={onCompleteRest}
+          className={`w-full min-h-[52px] px-5 rounded-full font-['Figtree'] font-bold text-[15px] tabular-nums transition-all active:scale-[0.98] cursor-pointer ${
+            isReady
+              ? 'bg-[#0B5F73] text-white hover:bg-[#084857] shadow-md'
+              : 'bg-[#FBFDFE] dark:bg-[#15252D] border border-[#C3D0D8] dark:border-slate-600 text-[#0F2733] dark:text-[#F1F6F8] hover:border-[#0B5F73] hover:bg-[#F7FBFC]'
+          }`}
+        >
+          {actionLabel}
         </button>
       </div>
     </div>

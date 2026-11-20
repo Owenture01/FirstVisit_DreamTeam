@@ -29,12 +29,14 @@ import { WhatToDoSheet } from './frontend/components/sheets/WhatToDoSheet';
 import { WhyWeFlaggedSheet } from './frontend/components/sheets/WhyWeFlaggedSheet';
 import { BookVideoCheckSheet } from './frontend/components/sheets/BookVideoCheckSheet';
 import { CuffRestTimerSheet } from './frontend/components/sheets/CuffRestTimerSheet';
+import { FloatingCuffTimerWidget } from './frontend/components/FloatingCuffTimerWidget';
 import { CuffResultSheet } from './frontend/components/sheets/CuffResultSheet';
 import { MissedCheckSheet } from './frontend/components/sheets/MissedCheckSheet';
 import { ClinicPortalView } from './clinic_app/ClinicPortalView';
 import { ScenarioSidebar } from './frontend/components/ScenarioSidebar';
 import { LockScreenNotification, LockScreenMode } from './frontend/components/LockScreenNotification';
 import { PhoneHomeScreen } from './frontend/components/PhoneHomeScreen';
+import { ClinicianPhoneAlertScreen } from './frontend/components/ClinicianPhoneAlertScreen';
 import { OnboardingFlow, OnboardingStep } from './frontend/screens/OnboardingFlow';
 import { ScreenTab, AppScenario } from './frontend/types';
 import { fetalAudio } from './frontend/utils/fetalSound';
@@ -51,6 +53,19 @@ import {
   calculateGestationalProgress,
   getDateForGestationalWeek,
 } from './frontend/utils/gestationalAge';
+import {
+  AppointmentSelectionInput,
+  BookedClinicAppointment,
+  rescheduleBookedAppointment,
+  toggleAppointmentConfirmation,
+} from './frontend/utils/bookedAppointment';
+import {
+  CUFF_REST_INITIAL_SECONDS,
+  CUFF_REST_TOTAL_SECONDS,
+  CuffTimerMode,
+  tickCuffCountdown,
+} from './frontend/utils/cuffRestTimer';
+import { CareScreenMode } from './frontend/utils/escalationScenarios';
 
 export default function App() {
   // Navigation & Scenario States
@@ -60,7 +75,10 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMidwifeChecking, setIsMidwifeChecking] = useState(false);
   const [isVideoBooked, setIsVideoBooked] = useState(false);
-  const [isCareVisitDone, setIsCareVisitDone] = useState(false);
+  const [bookedAppointment, setBookedAppointment] = useState<BookedClinicAppointment | null>(null);
+  const [careScreenMode, setCareScreenMode] = useState<CareScreenMode>('medicines');
+  const [isClinicianPhoneAlertOpen, setIsClinicianPhoneAlertOpen] = useState(false);
+  const [clinicianAlertTriggerKey, setClinicianAlertTriggerKey] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLockScreenOpen, setIsLockScreenOpen] = useState(false);
   const [lockScreenMode, setLockScreenMode] = useState<LockScreenMode>('morning');
@@ -88,7 +106,8 @@ export default function App() {
   const [showWhatToDoSheet, setShowWhatToDoSheet] = useState(false);
   const [showWhyWeFlaggedSheet, setShowWhyWeFlaggedSheet] = useState(false);
   const [showBookVideoSheet, setShowBookVideoSheet] = useState(false);
-  const [showCuffTimerSheet, setShowCuffTimerSheet] = useState(false);
+  const [cuffTimerMode, setCuffTimerMode] = useState<CuffTimerMode>('closed');
+  const [cuffSecondsRemaining, setCuffSecondsRemaining] = useState<number>(CUFF_REST_INITIAL_SECONDS);
   const [showCuffResultSheet, setShowCuffResultSheet] = useState(false);
   const [showMissedCheckSheet, setShowMissedCheckSheet] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -124,6 +143,16 @@ export default function App() {
     };
   }, [isEmergencyActive]);
 
+  useEffect(() => {
+    if (cuffTimerMode === 'closed') return;
+
+    const intervalId = window.setInterval(() => {
+      setCuffSecondsRemaining((prev) => tickCuffCountdown(prev));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cuffTimerMode]);
+
   const toggleAudio = () => {
     fetalAudio.toggle(138, (playing) => {
       setIsPlayingAudio(playing);
@@ -133,13 +162,22 @@ export default function App() {
   const handleScenarioChange = (newScenario: AppScenario) => {
     setScenario(newScenario);
     setIsClinicPortalActive(false);
-    setIsCareVisitDone(false);
+    setCareScreenMode('medicines');
     if (newScenario === 'early_pregnancy') {
       setSimulatedDate(getDateForGestationalWeek(dueDate, 9, 2));
-    } else if (newScenario === 'home_week31') {
+    } else if (
+      newScenario === 'home_week31' ||
+      newScenario === 'band_disconnected' ||
+      newScenario === 'offline'
+    ) {
       setSimulatedDate(getDateForGestationalWeek(dueDate, 31, 4));
     }
-    if (newScenario === 'critical_alert') {
+    if (
+      newScenario === 'critical_alert' ||
+      newScenario === 'band_disconnected' ||
+      newScenario === 'offline' ||
+      newScenario === 'postpartum_day5'
+    ) {
       setCurrentTab('today');
     }
   };
@@ -148,13 +186,14 @@ export default function App() {
     setShowWhatToDoSheet(false);
     setShowWhyWeFlaggedSheet(false);
     setShowBookVideoSheet(false);
-    setShowCuffTimerSheet(false);
+    setCuffTimerMode('closed');
     setShowCuffResultSheet(false);
     setShowMissedCheckSheet(false);
     setShowEmergencyModal(false);
     setShowHanaChat(false);
     setIsLockScreenOpen(false);
     setIsPhoneHomeOpen(false);
+    setIsClinicianPhoneAlertOpen(false);
   };
 
   const handleOpenLockScreen = (mode: LockScreenMode = 'morning') => {
@@ -188,6 +227,18 @@ export default function App() {
     setTodayDoses((prev) => markDoseTaken(prev, doseId));
   };
 
+  const handleAppointmentBooked = (selection: AppointmentSelectionInput) => {
+    setBookedAppointment((prev) => rescheduleBookedAppointment(prev, selection));
+    setIsVideoBooked(true);
+    setIsMidwifeChecking(true);
+    setScenario('home_week31');
+    setCurrentTab('today');
+  };
+
+  const handleToggleConfirmAppointment = () => {
+    setBookedAppointment((prev) => (prev ? toggleAppointmentConfirmation(prev) : prev));
+  };
+
   const handleOpenHana = () => {
     setHanaInitialView('daily');
     setShowHanaChat(true);
@@ -204,6 +255,7 @@ export default function App() {
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         currentTab={currentTab}
         scenario={scenario}
+        careScreenMode={careScreenMode}
         isClinicPortalActive={isClinicPortalActive}
         isLockScreenOpen={isLockScreenOpen}
         lockScreenMode={lockScreenMode}
@@ -229,7 +281,7 @@ export default function App() {
           setIsClinicPortalActive(false);
           setCurrentAuthScreen('authenticated');
           if (tab === 'care') {
-            setIsCareVisitDone(false);
+            setCareScreenMode('medicines');
           }
           setCurrentTab(tab);
         }}
@@ -237,6 +289,9 @@ export default function App() {
           closeAllSheets();
           setIsClinicPortalActive(false);
           setCurrentAuthScreen('authenticated');
+          setBookedAppointment(null);
+          setIsMidwifeChecking(false);
+          setIsVideoBooked(false);
           handleScenarioChange(scen);
         }}
         onOpenHelp={() => {
@@ -275,10 +330,11 @@ export default function App() {
         onOpenCuffTimer={() => {
           closeAllSheets();
           setCurrentAuthScreen('authenticated');
-          setIsMidwifeChecking(true);
+          setIsMidwifeChecking(false);
           handleScenarioChange('home_week31');
           setCurrentTab('today');
-          setShowCuffTimerSheet(true);
+          setCuffSecondsRemaining(CUFF_REST_INITIAL_SECONDS);
+          setCuffTimerMode('expanded');
         }}
         onOpenCuffResult={() => {
           closeAllSheets();
@@ -292,7 +348,7 @@ export default function App() {
           closeAllSheets();
           setCurrentAuthScreen('authenticated');
           setIsClinicPortalActive(false);
-          setIsCareVisitDone(true);
+          setCareScreenMode('visit_done');
           setCurrentTab('care');
         }}
         onOpenMissedCheck={() => {
@@ -303,6 +359,29 @@ export default function App() {
           handleScenarioChange('home_week31');
           setCurrentTab('today');
           setShowMissedCheckSheet(true);
+        }}
+        onOpenEscalatedCuff={() => {
+          closeAllSheets();
+          setCurrentAuthScreen('authenticated');
+          setIsClinicPortalActive(false);
+          setScenario('home_week31');
+          setSimulatedDate(getDateForGestationalWeek(dueDate, 31, 4));
+          setCareScreenMode('escalated');
+          setCurrentTab('care');
+        }}
+        onOpenClinicianPhoneAlert={() => {
+          closeAllSheets();
+          setCurrentAuthScreen('authenticated');
+          setIsClinicPortalActive(false);
+          setClinicianAlertTriggerKey((prev) => prev + 1);
+          setIsClinicianPhoneAlertOpen(true);
+        }}
+        onOpenPostpartumWeek6={() => {
+          closeAllSheets();
+          setCurrentAuthScreen('authenticated');
+          setIsClinicPortalActive(false);
+          setCareScreenMode('postpartum_week6');
+          setCurrentTab('care');
         }}
         isPlayingAudio={isPlayingAudio}
         onToggleAudio={toggleAudio}
@@ -361,7 +440,12 @@ export default function App() {
             currentAuthScreen === 'authenticated' ? (
               <BottomNav
                 currentTab={currentTab}
-                onTabChange={(tab) => setCurrentTab(tab)}
+                onTabChange={(tab) => {
+                  if (tab === 'care' && currentTab === 'care' && careScreenMode !== 'medicines') {
+                    setCareScreenMode('medicines');
+                  }
+                  setCurrentTab(tab);
+                }}
               />
             ) : undefined
           }
@@ -411,6 +495,52 @@ export default function App() {
                   setCurrentTab('today');
                 }}
               />
+              <FloatingCuffTimerWidget
+                isVisible={
+                  cuffTimerMode === 'minimized' &&
+                  currentAuthScreen === 'authenticated' &&
+                  currentTab === 'today' &&
+                  !isLockScreenOpen &&
+                  !isPhoneHomeOpen &&
+                  !showHanaChat
+                }
+                secondsRemaining={cuffSecondsRemaining}
+                totalSeconds={CUFF_REST_TOTAL_SECONDS}
+                onExpand={() => setCuffTimerMode('expanded')}
+              />
+              <CuffRestTimerSheet
+                isOpen={cuffTimerMode === 'expanded'}
+                secondsRemaining={cuffSecondsRemaining}
+                totalSeconds={CUFF_REST_TOTAL_SECONDS}
+                onMinimize={() => {
+                  setCurrentTab('today');
+                  setCuffTimerMode('minimized');
+                }}
+                onCompleteRest={() => {
+                  setCuffTimerMode('closed');
+                  setIsMidwifeChecking(true);
+                  setShowCuffResultSheet(true);
+                }}
+                onOpenHelp={() => {
+                  setCuffTimerMode('minimized');
+                  setShowEmergencyModal(true);
+                }}
+              />
+              <CuffResultSheet
+                isOpen={showCuffResultSheet}
+                onClose={() => setShowCuffResultSheet(false)}
+                onAnswerNo={() => {
+                  setShowCuffResultSheet(false);
+                }}
+                onAnswerYes={() => {
+                  setShowCuffResultSheet(false);
+                  setShowEmergencyModal(true);
+                }}
+              />
+              <ClinicianPhoneAlertScreen
+                isOpen={isClinicianPhoneAlertOpen}
+                triggerKey={clinicianAlertTriggerKey}
+              />
             </>
           }
         >
@@ -434,8 +564,14 @@ export default function App() {
                   dueDate={dueDate}
                   isMidwifeChecking={isMidwifeChecking}
                   isVideoBooked={isVideoBooked}
+                  bookedAppointment={bookedAppointment}
                   isAlarmMuted={isAlarmMuted}
                   onToggleAlarmMute={() => emergencyAlarm.toggleMute()}
+                  onToggleConfirmAppointment={handleToggleConfirmAppointment}
+                  onRescheduleAppointment={() => {
+                    closeAllSheets();
+                    setShowBookVideoSheet(true);
+                  }}
                   onOpenHelp={() => setShowEmergencyModal(true)}
                   onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
@@ -450,6 +586,18 @@ export default function App() {
                     setShowWhatToDoSheet(true);
                   }}
                   onMarkDoseTaken={handleMarkDoseTaken}
+                  onNavigateToCare={() => {
+                    setCareScreenMode('medicines');
+                    setCurrentTab('care');
+                  }}
+                  onReconnectBand={() => {
+                    handleScenarioChange('home_week31');
+                    setCurrentTab('today');
+                  }}
+                  onOpenMoodCheck={() => {
+                    setHanaInitialView('mood_question');
+                    setShowHanaChat(true);
+                  }}
                 />
               )}
 
@@ -479,7 +627,7 @@ export default function App() {
                   onOpenHelp={() => setShowEmergencyModal(true)}
                   onOpenHana={handleOpenHana}
                   onOpenProfile={() => setShowHardwareSheet(true)}
-                  isVisitDone={isCareVisitDone}
+                  careMode={careScreenMode}
                   todayDoses={todayDoses}
                   onToggleDose={handleToggleDose}
                 />
@@ -526,8 +674,9 @@ export default function App() {
           setShowWhatToDoSheet(false);
           setShowEmergencyModal(true);
         }}
-        onAppointmentBooked={() => {
-          setIsVideoBooked(true);
+        onAppointmentBooked={(selection) => {
+          handleAppointmentBooked(selection);
+          setShowWhatToDoSheet(false);
         }}
       />
 
@@ -543,30 +692,9 @@ export default function App() {
       <BookVideoCheckSheet
         isOpen={showBookVideoSheet}
         onClose={() => setShowBookVideoSheet(false)}
-        onBookingConfirmed={() => {
-          setIsVideoBooked(true);
-        }}
-      />
-
-      <CuffRestTimerSheet
-        isOpen={showCuffTimerSheet}
-        onClose={() => setShowCuffTimerSheet(false)}
-        onCompleteRest={() => {
-          setShowCuffTimerSheet(false);
-          setShowCuffResultSheet(true);
-        }}
-      />
-
-      <CuffResultSheet
-        isOpen={showCuffResultSheet}
-        onClose={() => setShowCuffResultSheet(false)}
-        onAnswerNo={() => {
-          setShowCuffResultSheet(false);
-        }}
-        onAnswerYes={() => {
-          setShowCuffResultSheet(false);
-          setShowEmergencyModal(true);
-        }}
+        initialDateLabel={bookedAppointment?.dateLabel}
+        initialTime={bookedAppointment?.time}
+        onBookingConfirmed={handleAppointmentBooked}
       />
 
       <MissedCheckSheet

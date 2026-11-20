@@ -321,6 +321,42 @@ h1, h2, h3, h4, .font-heading {
   animation: toast-banner-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes cuff-sheet-expand {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cuff-widget-pop {
+  0% {
+    opacity: 0;
+    transform: scale(1.45) translateY(-16px);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.95) translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-cuff-sheet-expand {
+  transform-origin: center center;
+  animation: cuff-sheet-expand 0.24s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-cuff-widget-pop {
+  transform-origin: center center;
+  animation: cuff-widget-pop 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-heartbeat,
   .animate-ecg-line,
@@ -337,7 +373,9 @@ h1, h2, h3, h4, .font-heading {
   .animate-lock-pop,
   .animate-faceid-scan,
   .animate-hana-cloud-pop,
-  .animate-toast-banner-pop {
+  .animate-toast-banner-pop,
+  .animate-cuff-sheet-expand,
+  .animate-cuff-widget-pop {
     animation: none;
   }
 }

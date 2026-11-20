@@ -14,12 +14,13 @@ import {
   formatClinicAvailabilityLine,
   getLocationById,
 } from '../../utils/whatToDoOptions';
+import { AppointmentSelectionInput } from '../../utils/bookedAppointment';
 
 interface WhatToDoSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onCall998: () => void;
-  onAppointmentBooked?: (summary: string) => void;
+  onAppointmentBooked?: (selection: AppointmentSelectionInput) => void;
   onMedicineTaken?: () => void;
 }
 
@@ -58,7 +59,13 @@ export const WhatToDoSheet: React.FC<WhatToDoSheetProps> = ({
     const confirmed = { dateLabel: currentDateOption.label, time: selectedTime };
     setBookedSlot(confirmed);
     setActivePanel('none');
-    onAppointmentBooked?.(`${confirmed.dateLabel}, ${confirmed.time} · ${currentLocation.name}`);
+    onAppointmentBooked?.({
+      dateLabel: confirmed.dateLabel,
+      time: confirmed.time,
+      location: currentLocation.name,
+      address: currentLocation.address,
+      driveMinutes: currentLocation.driveMinutes,
+    });
   };
 
   const handleSelectLocation = (locationId: string) => {
